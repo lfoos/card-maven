@@ -379,7 +379,7 @@ function openAddCardModal() {
   document.getElementById('card-modal-title').textContent = 'Add Card';
   document.getElementById('edit-card-id').value = '';
   clearCardForm();
-  document.getElementById('photo-upload-section').style.display = 'none';
+  document.getElementById('photo-upload-section').style.display = 'block';
   document.getElementById('save-card-btn').textContent = 'Save Card';
   document.getElementById('card-modal').style.display = 'flex';
 }
@@ -435,6 +435,7 @@ function clearCardForm() {
   document.getElementById('back-placeholder').style.display = 'block';
   document.getElementById('front-file').value = '';
   document.getElementById('back-file').value = '';
+  updateScanButton();
 }
 
 async function saveCard() {
@@ -494,6 +495,61 @@ function previewPhoto(side, input) {
     document.getElementById(side + '-placeholder').style.display = 'none';
   };
   reader.readAsDataURL(file);
+  updateScanButton();
+}
+
+function updateScanButton() {
+  const btn = document.getElementById('scan-card-btn');
+  if (!btn) return;
+  const hasFront = !!document.getElementById('front-file').files[0];
+  const hasBack  = !!document.getElementById('back-file').files[0];
+  btn.disabled = !(hasFront || hasBack);
+}
+
+async function scanCard() {
+  const frontFile = document.getElementById('front-file').files[0];
+  const backFile  = document.getElementById('back-file').files[0];
+  if (!frontFile && !backFile) return;
+
+  const btn = document.getElementById('scan-card-btn');
+  const origText = btn.textContent;
+  btn.textContent = 'Scanning…';
+  btn.disabled = true;
+
+  try {
+    const fd = new FormData();
+    if (frontFile) fd.append('front', frontFile);
+    if (backFile)  fd.append('back',  backFile);
+
+    const res = await fetch('/api/scan-card', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+    const fieldMap = {
+      player:        'f-player',
+      year:          'f-year',
+      card_set:      'f-set',
+      variation:     'f-variation',
+      serial_number: 'f-serial',
+      grade:         'f-grade',
+      grader:        'f-grader',
+      condition_raw: 'f-condition',
+    };
+
+    for (const [key, elId] of Object.entries(fieldMap)) {
+      if (data[key] !== null && data[key] !== undefined) {
+        const el = document.getElementById(elId);
+        if (el && !el.value.trim()) el.value = data[key];
+      }
+    }
+
+    toast('Scan complete — fill in any remaining fields manually.', 'success');
+  } catch (e) {
+    toast('Scan failed: ' + e.message, 'error');
+  } finally {
+    btn.textContent = origText;
+    updateScanButton();
+  }
 }
 
 function openPhotoUpload() {

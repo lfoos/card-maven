@@ -191,7 +191,6 @@
           <label>Notes</label>
           <textarea id="f-notes" placeholder="Any additional details…" rows="2"></textarea>
         </div>
-        <!-- Photo upload (only shown when editing existing card) -->
         <div id="photo-upload-section" class="full-width" style="display:none">
           <div class="photo-upload-grid">
             <div class="photo-upload-slot">
@@ -210,6 +209,11 @@
               </div>
               <input type="file" id="back-file" accept="image/*" style="display:none" onchange="previewPhoto('back', this)" />
             </div>
+          </div>
+          <div style="margin-top:0.75rem;text-align:center">
+            <button type="button" id="scan-card-btn" class="btn btn-ghost" onclick="scanCard()" disabled>
+              ✦ Scan Card to Auto-fill
+            </button>
           </div>
         </div>
       </div>

@@ -9,6 +9,8 @@ import re
 import statistics
 import time
 import urllib.parse
+import base64
+import anthropic
 from datetime import datetime, timedelta
 from io import BytesIO
 
@@ -662,6 +664,69 @@ def refresh_all():
     for card in cards:
         total += refresh_card_prices(card)
     return jsonify({"total_added": total, "cards_updated": len(cards)})
+
+
+
+# ─ Card scan ─
+SCAN_PROMPT = """You are analyzing a sports trading card image. Extract the following fields and return them as a JSON object. Use null for any field you cannot determine.
+
+Fields:
+- player: Full player name (string)
+- year: Card year as a 4-digit string, e.g. "2011" (string)
+- card_set: Set name, e.g. "Topps Update", "Prizm" (string)
+- variation: Parallel or variation name, e.g. "Gold Refractor" (string or null)
+- serial_number: Serial number if stamped on card, e.g. "47/99" (string or null)
+- grade: Numeric grade if this is a graded slab, e.g. "10", "9.5" (string or null)
+- grader: Grading company if graded — use exactly one of: PSA, BGS, SGC, HGA, or null
+- condition_raw: Raw condition if ungraded — use exactly one of: Gem Mint, NM-MT, NM, EX-MT, EX, VG-EX, VG, Poor, or null
+
+Return ONLY a valid JSON object with these exact keys. No explanation, no markdown fences."""
+
+_MEDIA_TYPES = {
+    'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
+    'png': 'image/png', 'gif': 'image/gif', 'webp': 'image/webp',
+}
+
+
+@app.route("/api/scan-card", methods=["POST"])
+def scan_card():
+    api_key = CONFIG.get("anthropic_api_key", "")
+    if not api_key:
+        return jsonify({"error": "anthropic_api_key not configured"}), 400
+
+    content = []
+    for side in ("front", "back"):
+        file = request.files.get(side)
+        if file and "." in (file.filename or ""):
+            ext = file.filename.rsplit(".", 1)[-1].lower()
+            media_type = _MEDIA_TYPES.get(ext)
+            if not media_type:
+                continue
+            img_b64 = base64.standard_b64encode(file.read()).decode("utf-8")
+            content.append({
+                "type": "image",
+                "source": {"type": "base64", "media_type": media_type, "data": img_b64},
+            })
+
+    if not content:
+        return jsonify({"error": "No valid image files provided"}), 400
+
+    content.append({"type": "text", "text": SCAN_PROMPT})
+
+    try:
+        client = anthropic.Anthropic(api_key=api_key)
+        message = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=512,
+            messages=[{"role": "user", "content": content}],
+        )
+        text = message.content[0].text.strip()
+        # Strip markdown code fences if Claude wraps its response
+        text = re.sub(r'^```(?:json)?\s*|\s*```$', '', text)
+        result = json.loads(text)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 # ── Init DB ───────────────────────────────────────────────────────────────────
