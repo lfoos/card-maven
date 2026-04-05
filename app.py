@@ -697,9 +697,11 @@ def scan_card():
     content = []
     for side in ("front", "back"):
         file = request.files.get(side)
-        if file and allowed_file(file.filename):
+        if file and "." in (file.filename or ""):
             ext = file.filename.rsplit(".", 1)[-1].lower()
-            media_type = _MEDIA_TYPES.get(ext, "image/jpeg")
+            media_type = _MEDIA_TYPES.get(ext)
+            if not media_type:
+                continue
             img_b64 = base64.standard_b64encode(file.read()).decode("utf-8")
             content.append({
                 "type": "image",
