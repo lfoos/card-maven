@@ -8,3 +8,5 @@ instance/
 uploads/
 .DS_Store
 .claude/
+.superpowers/
+venv/
