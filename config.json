@@ -1,0 +1,4 @@
+{
+  "_comment": "Card Maven configuration. Add your eBay Developer App ID below to enable live price fetching.",
+  "ebay_app_id": ""
+}

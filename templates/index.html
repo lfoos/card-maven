@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Card Maven</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+
+<!-- ── Sidebar Nav ────────────────────────────────────────── -->
+<nav class="sidebar" id="sidebar">
+  <div class="sidebar-logo">
+    <span class="logo-icon">🃏</span>
+    <span class="logo-text">Card Maven</span>
+  </div>
+  <ul class="nav-links">
+    <li><a href="#" class="nav-item active" data-page="dashboard"><span class="nav-icon">📊</span> Dashboard</a></li>
+    <li><a href="#" class="nav-item" data-page="collection"><span class="nav-icon">🗂</span> Collection</a></li>
+    <li><a href="#" class="nav-item" data-page="listings"><span class="nav-icon">🛒</span> eBay Listings</a></li>
+    <li><a href="#" class="nav-item" data-page="alerts"><span class="nav-icon">🔔</span> Buy/Sell Alerts <span id="alert-badge" class="badge" style="display:none">0</span></a></li>
+  </ul>
+  <div class="sidebar-bottom">
+    <button class="btn btn-primary w-full" onclick="openAddCardModal()">+ Add Card</button>
+    <button class="btn btn-ghost w-full mt-sm" id="refresh-all-btn" onclick="refreshAllPrices()">↻ Refresh Prices</button>
+  </div>
+</nav>
+
+<!-- ── Main Content ───────────────────────────────────────── -->
+<main class="main-content">
+
+  <!-- ── Top Bar ── -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="hamburger" onclick="toggleSidebar()">☰</button>
+      <h1 id="page-title">Dashboard</h1>
+    </div>
+    <div class="topbar-right">
+      <div class="search-box">
+        <input type="text" id="search-input" placeholder="Search cards…" oninput="handleSearch(this.value)">
+        <span class="search-icon">🔍</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ════════════ DASHBOARD PAGE ════════════ -->
+  <section id="page-dashboard" class="page active">
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Total Cards</div>
+        <div class="stat-value" id="stat-total-cards">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Collection Value</div>
+        <div class="stat-value green" id="stat-total-value">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Invested</div>
+        <div class="stat-value" id="stat-invested">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total P&L</div>
+        <div class="stat-value" id="stat-pnl">—</div>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="card-panel">
+        <h2 class="panel-title">Recently Added</h2>
+        <div id="recent-cards-list"></div>
+      </div>
+      <div class="card-panel">
+        <h2 class="panel-title">🔥 Sell Alerts</h2>
+        <div id="sell-alerts-list"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════ COLLECTION PAGE ════════════ -->
+  <section id="page-collection" class="page">
+    <div class="collection-toolbar">
+      <div class="sort-controls">
+        <label>Sort by</label>
+        <select id="sort-select" onchange="loadCollection()">
+          <option value="created_at">Date Added</option>
+          <option value="player">Player</option>
+          <option value="estimated_value">Value</option>
+          <option value="purchase_price">Cost</option>
+        </select>
+        <select id="order-select" onchange="loadCollection()">
+          <option value="desc">↓ Desc</option>
+          <option value="asc">↑ Asc</option>
+        </select>
+      </div>
+      <span id="collection-count" class="collection-count"></span>
+    </div>
+    <div id="collection-grid" class="collection-grid"></div>
+  </section>
+
+  <!-- ════════════ LISTINGS PAGE ════════════ -->
+  <section id="page-listings" class="page">
+    <div class="listings-toolbar">
+      <div class="filter-tabs">
+        <button class="filter-tab active" onclick="filterListings('draft', this)">Drafts</button>
+        <button class="filter-tab" onclick="filterListings('posted', this)">Posted</button>
+        <button class="filter-tab" onclick="filterListings('sold', this)">Sold</button>
+        <button class="filter-tab" onclick="filterListings('', this)">All</button>
+      </div>
+    </div>
+    <div id="listings-container"></div>
+  </section>
+
+  <!-- ════════════ ALERTS PAGE ════════════ -->
+  <section id="page-alerts" class="page">
+    <p class="page-subtitle">Cards where the data suggests action — sell while prices are high, or hold strong performers.</p>
+    <div id="alerts-container"></div>
+  </section>
+
+</main>
+
+<!-- ════════════ ADD / EDIT CARD MODAL ════════════ -->
+<div id="card-modal" class="modal-overlay" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="card-modal-title">Add Card</h2>
+      <button class="modal-close" onclick="closeModal('card-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="edit-card-id" />
+      <div class="form-grid">
+        <div class="form-group required">
+          <label>Player Name *</label>
+          <input type="text" id="f-player" placeholder="e.g. Mike Trout" />
+        </div>
+        <div class="form-group">
+          <label>Year</label>
+          <input type="text" id="f-year" placeholder="e.g. 2011" />
+        </div>
+        <div class="form-group">
+          <label>Card Set</label>
+          <input type="text" id="f-set" placeholder="e.g. Topps Update" />
+        </div>
+        <div class="form-group">
+          <label>Variation / Parallel</label>
+          <input type="text" id="f-variation" placeholder="e.g. Gold Refractor" />
+        </div>
+        <div class="form-group">
+          <label>Serial Number</label>
+          <input type="text" id="f-serial" placeholder="e.g. 47/99" />
+        </div>
+        <div class="form-group">
+          <label>Grader</label>
+          <select id="f-grader">
+            <option value="">Raw / Ungraded</option>
+            <option value="PSA">PSA</option>
+            <option value="BGS">BGS (Beckett)</option>
+            <option value="SGC">SGC</option>
+            <option value="HGA">HGA</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Grade</label>
+          <input type="text" id="f-grade" placeholder="e.g. 10, 9.5, 8" />
+        </div>
+        <div class="form-group">
+          <label>Raw Condition</label>
+          <select id="f-condition">
+            <option value="">Select…</option>
+            <option value="Gem Mint">Gem Mint</option>
+            <option value="NM-MT">NM-MT</option>
+            <option value="NM">NM</option>
+            <option value="EX-MT">EX-MT</option>
+            <option value="EX">EX</option>
+            <option value="VG-EX">VG-EX</option>
+            <option value="VG">VG</option>
+            <option value="Poor">Poor</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Purchase Price ($)</label>
+          <input type="number" id="f-purchase-price" placeholder="0.00" step="0.01" min="0" />
+        </div>
+        <div class="form-group">
+          <label>Purchase Date</label>
+          <input type="date" id="f-purchase-date" />
+        </div>
+        <div class="form-group full-width">
+          <label>Notes</label>
+          <textarea id="f-notes" placeholder="Any additional details…" rows="2"></textarea>
+        </div>
+        <!-- Photo upload (only shown when editing existing card) -->
+        <div id="photo-upload-section" class="full-width" style="display:none">
+          <div class="photo-upload-grid">
+            <div class="photo-upload-slot">
+              <label>Front Photo</label>
+              <div class="photo-drop" id="front-drop" onclick="document.getElementById('front-file').click()">
+                <img id="front-preview" src="" alt="" style="display:none" />
+                <span id="front-placeholder">📷 Click to upload front</span>
+              </div>
+              <input type="file" id="front-file" accept="image/*" style="display:none" onchange="previewPhoto('front', this)" />
+            </div>
+            <div class="photo-upload-slot">
+              <label>Back Photo</label>
+              <div class="photo-drop" id="back-drop" onclick="document.getElementById('back-file').click()">
+                <img id="back-preview" src="" alt="" style="display:none" />
+                <span id="back-placeholder">📷 Click to upload back</span>
+              </div>
+              <input type="file" id="back-file" accept="image/*" style="display:none" onchange="previewPhoto('back', this)" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('card-modal')">Cancel</button>
+      <button class="btn btn-primary" id="save-card-btn" onclick="saveCard()">Save Card</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════ CARD DETAIL MODAL ════════════ -->
+<div id="detail-modal" class="modal-overlay" style="display:none">
+  <div class="modal modal-wide">
+    <div class="modal-header">
+      <h2 id="detail-title">Card Detail</h2>
+      <button class="modal-close" onclick="closeModal('detail-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="detail-layout">
+        <!-- Photos -->
+        <div class="detail-photos">
+          <img id="detail-front" class="detail-photo" src="" alt="Front" onclick="showPhotoFullscreen(this.src)" />
+          <img id="detail-back" class="detail-photo" src="" alt="Back" onclick="showPhotoFullscreen(this.src)" />
+          <div id="detail-no-photos" class="no-photos-placeholder" style="display:none">
+            <span>No photos yet</span>
+            <button class="btn btn-ghost btn-sm mt-sm" onclick="openPhotoUpload()">Upload Photos</button>
+          </div>
+        </div>
+        <!-- Details -->
+        <div class="detail-info">
+          <div id="detail-meta"></div>
+          <div class="detail-section">
+            <h3>💰 Price History</h3>
+            <div class="price-stats" id="detail-price-stats"></div>
+            <canvas id="price-chart" height="200"></canvas>
+            <div class="price-actions">
+              <button class="btn btn-ghost btn-sm" onclick="refreshPrices()">↻ Fetch New Prices</button>
+              <button class="btn btn-ghost btn-sm" onclick="openManualPrice()">+ Add Manual Price</button>
+            </div>
+            <div id="price-list" class="price-list"></div>
+          </div>
+          <div class="detail-section">
+            <h3>🎯 Recommendation</h3>
+            <div id="detail-recommendation"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="editCurrentCard()">✏️ Edit</button>
+      <button class="btn btn-danger" onclick="deleteCurrentCard()">🗑 Delete</button>
+      <button class="btn btn-primary" onclick="generateListing()">🛒 Generate eBay Listing</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════ LISTING DETAIL MODAL ════════════ -->
+<div id="listing-modal" class="modal-overlay" style="display:none">
+  <div class="modal modal-wide">
+    <div class="modal-header">
+      <h2>Review eBay Listing</h2>
+      <button class="modal-close" onclick="closeModal('listing-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="listing-id" />
+      <div class="form-group">
+        <label>Title <span class="char-count" id="title-char-count">0/80</span></label>
+        <input type="text" id="listing-title" maxlength="80" oninput="updateCharCount()" />
+      </div>
+      <div class="listing-prices-row">
+        <div class="form-group">
+          <label>Starting / Auction Price ($)</label>
+          <input type="number" id="listing-start" step="0.01" min="0" />
+        </div>
+        <div class="form-group">
+          <label>Buy It Now Price ($)</label>
+          <input type="number" id="listing-buynow" step="0.01" min="0" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Description (HTML)</label>
+        <textarea id="listing-desc" rows="10" style="font-family:monospace;font-size:13px"></textarea>
+      </div>
+      <div class="form-group">
+        <label>eBay Item ID (after posting)</label>
+        <input type="text" id="listing-ebay-id" placeholder="Leave blank until posted" />
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="updateListingStatus('sold')">Mark Sold</button>
+      <button class="btn btn-ghost btn-danger-outline" onclick="deleteListing()">Delete Draft</button>
+      <button class="btn btn-ghost" onclick="closeModal('listing-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveListing()">💾 Save Draft</button>
+      <a id="ebay-post-link" class="btn btn-ebay" href="#" target="_blank" onclick="openOnEbay()">🚀 Post on eBay</a>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════ MANUAL PRICE MODAL ════════════ -->
+<div id="price-modal" class="modal-overlay" style="display:none">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h2>Add Price Record</h2>
+      <button class="modal-close" onclick="closeModal('price-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Sale Price ($) *</label>
+        <input type="number" id="p-price" step="0.01" min="0" placeholder="0.00" />
+      </div>
+      <div class="form-group">
+        <label>Sale Date</label>
+        <input type="date" id="p-date" />
+      </div>
+      <div class="form-group">
+        <label>Note (optional)</label>
+        <input type="text" id="p-title" placeholder="e.g. eBay sale #1234" />
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('price-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveManualPrice()">Add Price</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════ FULLSCREEN PHOTO ════════════ -->
+<div id="photo-fullscreen" class="photo-fullscreen" style="display:none" onclick="closeModal('photo-fullscreen')">
+  <img id="photo-fullscreen-img" src="" alt="" />
+</div>
+
+<!-- ════════════ TOAST ════════════ -->
+<div id="toast" class="toast" style="display:none"></div>
+
+<script src="/static/js/app.js"></script>
+</body>
+</html>
