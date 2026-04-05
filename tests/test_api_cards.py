@@ -79,6 +79,9 @@ class TestUpdateCard:
         resp = client.put(f'/api/cards/{card_id}', json={'player': 'Ken Griffey Jr'})
         assert resp.status_code == 200
         assert resp.get_json()['player'] == 'Ken Griffey Jr'
+        # Verify persisted
+        fetched = client.get(f'/api/cards/{card_id}').get_json()
+        assert fetched['player'] == 'Ken Griffey Jr'
 
     def test_updates_multiple_fields(self, client, make_card):
         card_id = make_card()
@@ -91,6 +94,11 @@ class TestUpdateCard:
         assert data['year'] == '1999'
         assert data['card_set'] == 'Bowman Chrome'
         assert data['grade'] == '9'
+        # Verify persisted
+        fetched = client.get(f'/api/cards/{card_id}').get_json()
+        assert fetched['year'] == '1999'
+        assert fetched['card_set'] == 'Bowman Chrome'
+        assert fetched['grade'] == '9'
 
     def test_update_missing_card_returns_404(self, client):
         resp = client.put('/api/cards/9999', json={'player': 'Nobody'})
