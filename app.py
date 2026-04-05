@@ -720,10 +720,7 @@ def scan_card():
         )
         text = message.content[0].text.strip()
         # Strip markdown code fences if Claude wraps its response
-        if text.startswith("```"):
-            text = text.split("```")[1]
-            if text.startswith("json"):
-                text = text[4:]
+        text = re.sub(r'^```(?:json)?\s*|\s*```$', '', text)
         result = json.loads(text)
         return jsonify(result)
     except Exception as e:

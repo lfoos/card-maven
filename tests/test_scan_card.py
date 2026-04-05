@@ -1,6 +1,8 @@
 import io
 from unittest.mock import MagicMock, patch
 
+import app as app_module
+
 
 # Minimal valid JPEG bytes (SOI marker only — enough for Pillow/file detection)
 FAKE_JPEG = b'\xff\xd8\xff\xe0' + b'\x00' * 16
@@ -11,7 +13,6 @@ class TestScanCard:
         """No anthropic_api_key in CONFIG → 400 with clear error."""
         with patch.dict('app.CONFIG', {}, clear=False):
             # Ensure key is absent
-            import app as app_module
             app_module.CONFIG.pop('anthropic_api_key', None)
             resp = client.post('/api/scan-card')
         assert resp.status_code == 400
@@ -63,3 +64,21 @@ class TestScanCard:
 
         assert resp.status_code == 500
         assert 'API timeout' in resp.get_json()['error']
+
+    def test_strips_markdown_fences_from_claude_response(self, client):
+        """Claude wrapping JSON in ```json...``` fences is handled correctly."""
+        fenced = '```json\n{"player":"Shohei Ohtani","year":"2023","card_set":"Topps","variation":null,"serial_number":null,"grade":null,"grader":null,"condition_raw":null}\n```'
+        mock_msg = MagicMock()
+        mock_msg.content = [MagicMock(text=fenced)]
+
+        with patch.dict('app.CONFIG', {'anthropic_api_key': 'sk-ant-test'}):
+            with patch('app.anthropic.Anthropic') as MockClient:
+                MockClient.return_value.messages.create.return_value = mock_msg
+                resp = client.post(
+                    '/api/scan-card',
+                    data={'front': (io.BytesIO(FAKE_JPEG), 'front.jpg')},
+                    content_type='multipart/form-data',
+                )
+
+        assert resp.status_code == 200
+        assert resp.get_json()['player'] == 'Shohei Ohtani'
