@@ -332,6 +332,8 @@ def refresh_card_prices(card: Card) -> int:
             added += 1
 
     if added > 0:
+        db.session.flush()
+        db.session.expire(card)
         recent = [r.price for r in card.price_records if r.price]
         if recent:
             card.estimated_value = round(statistics.median(recent[-20:]), 2)
@@ -581,8 +583,9 @@ def add_manual_price(card_id):
         sale_date = data.get("sale_date", datetime.utcnow().strftime("%Y-%m-%d")),
         title     = data.get("title", "Manual entry"),
     )
+    existing_prices = [r.price for r in card.price_records if r.price]
     db.session.add(pr)
-    recent = [r.price for r in card.price_records if r.price] + [pr.price]
+    recent = existing_prices + [pr.price]
     card.estimated_value = round(statistics.median(recent[-20:]), 2)
     card.last_price_upd = datetime.utcnow()
     db.session.commit()
