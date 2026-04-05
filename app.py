@@ -26,7 +26,7 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 app = Flask(__name__)
 app.config.update(
-    SQLALCHEMY_DATABASE_URI=f"sqlite:///{os.path.join(BASE_DIR, 'card_maven.db')}",
+    SQLALCHEMY_DATABASE_URI=os.environ.get('TEST_DATABASE_URI') or f"sqlite:///{os.path.join(BASE_DIR, 'card_maven.db')}",
     SQLALCHEMY_TRACK_MODIFICATIONS=False,
     MAX_CONTENT_LENGTH=32 * 1024 * 1024,  # 32 MB
 )
