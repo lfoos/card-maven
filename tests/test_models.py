@@ -1,6 +1,6 @@
 import pytest
 from datetime import datetime, timedelta
-from app import Card, PriceRecord, build_search_query
+from app import Card, PriceRecord, build_search_query, db
 
 
 # ── Card._trend ───────────────────────────────────────────────────────────────
@@ -72,6 +72,7 @@ class TestRecommend:
         rec, reason = self.card._recommend(prices)
         assert rec == 'sell'
         assert '120' in reason
+        assert 'strong profit' in reason
 
     def test_sell_when_roi_over_50_and_trend_neutral(self):
         # ROI = (160-100)/100*100 = 60%; trend "neutral" → check 3 fires
@@ -80,6 +81,7 @@ class TestRecommend:
         prices = [100, 100, 100, 100]  # no change → "neutral"
         rec, reason = self.card._recommend(prices)
         assert rec == 'sell'
+        assert 'momentum' in reason
 
     def test_hold_when_trend_up_and_roi_under_20(self):
         # ROI = (110-100)/100*100 = 10%; trend "up" and roi < 20 → "hold" (check 7)
@@ -105,6 +107,15 @@ class TestRecommend:
         rec, _ = self.card._recommend(prices)
         assert rec == 'hold'
 
+    def test_hold_default_when_roi_is_moderate(self):
+        # ROI = (115-100)/100*100 = 15%; trend "neutral" → no branch fires → default hold
+        self.card.purchase_price = 100.0
+        self.card.estimated_value = 115.0
+        prices = [110, 110, 110, 110]  # neutral trend
+        rec, reason = self.card._recommend(prices)
+        assert rec == 'hold'
+        assert 'Holding at' in reason
+
 
 # ── Card.to_dict ──────────────────────────────────────────────────────────────
 
@@ -112,13 +123,13 @@ class TestToDict:
     def test_roi_is_none_when_no_purchase_price(self, app, make_card):
         card_id = make_card(purchase_price=None)
         with app.app_context():
-            d = Card.query.get(card_id).to_dict()
+            d = db.session.get(Card, card_id).to_dict()
         assert d['roi'] is None
 
     def test_roi_is_none_when_purchase_price_is_zero(self, app, make_card):
         card_id = make_card(purchase_price=0.0)
         with app.app_context():
-            d = Card.query.get(card_id).to_dict()
+            d = db.session.get(Card, card_id).to_dict()
         assert d['roi'] is None
 
     def test_recent_prices_exclude_records_older_than_90_days(
@@ -129,7 +140,7 @@ class TestToDict:
         make_price(card_id, price=200.0, fetched_at=old)   # outside 90-day window
         make_price(card_id, price=80.0)                     # recent
         with app.app_context():
-            d = Card.query.get(card_id).to_dict()
+            d = db.session.get(Card, card_id).to_dict()
         assert d['price_count'] == 1
         assert d['recent_avg'] == 80.0
 
@@ -138,7 +149,7 @@ class TestToDict:
         make_price(card_id, price=60.0)
         make_price(card_id, price=70.0)
         with app.app_context():
-            d = Card.query.get(card_id).to_dict()
+            d = db.session.get(Card, card_id).to_dict()
         assert d['price_count'] == 2
 
     def test_recent_avg_and_median_are_correct(self, app, make_card, make_price):
@@ -146,7 +157,7 @@ class TestToDict:
         for p in [60.0, 80.0, 100.0]:
             make_price(card_id, price=p)
         with app.app_context():
-            d = Card.query.get(card_id).to_dict()
+            d = db.session.get(Card, card_id).to_dict()
         assert d['recent_avg'] == 80.0
         assert d['recent_median'] == 80.0
 
