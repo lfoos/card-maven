@@ -537,7 +537,7 @@ async function scanCard() {
     };
 
     for (const [key, elId] of Object.entries(fieldMap)) {
-      if (data[key]) {
+      if (data[key] !== null && data[key] !== undefined) {
         const el = document.getElementById(elId);
         if (el && !el.value.trim()) el.value = data[key];
       }
