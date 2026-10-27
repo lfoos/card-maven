@@ -10,7 +10,7 @@ Card Maven lets collectors track their sports card collections and value them ag
 
 | # | Topic | Decision |
 |---|---|---|
-| 1 | Sales data | A `MarketDataSource` port with pluggable adapters and one source-agnostic sales model. Start with the cheapest viable source and add more comprehensive sources later. |
+| 1 | Market data | A `MarketDataSource` port with pluggable adapters and source-agnostic `sale` and `listing` models. Start free: fixtures, manual/CSV comps, and eBay Browse + Taxonomy. Apply for eBay Marketplace Insights for sold comps. Choose a paid provider only if needed (see §8). |
 | 2 | Users | Collectors. Multi-tenant from day one. **Auth is OIDC** (Authorization Code + PKCE) with Keycloak locally and Cognito on AWS. See [auth.md](architecture/auth.md). Every user-owned row carries `owner_id`, and isolation is enforced at the repository layer. |
 | 3 | Identification | Vision-model identification, always followed by a user confirmation step. A `ReferenceCatalog` port is stubbed so a licensed checklist can be added later without schema changes. |
 | 4 | Grading | v1 combines LLM vision with deterministic OpenCV centering and shows an estimated grade range with a disclaimer. Front and back images are required. |
@@ -121,6 +121,8 @@ erDiagram
   IDENTIFICATION }o--|| CARD_VARIANT : "confirmed as"
   IMAGE ||--o{ IMAGE_EMBEDDING : ""
   MARKET_SOURCE ||--o{ SALE : provides
+  MARKET_SOURCE ||--o{ LISTING : provides
+  CARD_VARIANT ||--o{ LISTING : "listed as"
   TRACKED_SET }o--|| CARD_SET : targets
 ```
 
@@ -131,7 +133,8 @@ erDiagram
 | `parallel` | name, color, print run (`/499`), is_autograph, is_refractor |
 | `card_variant` | unique (card, parallel). The join point for sales and holdings. |
 | `collection_item` | owner, variant, serial number, condition: `raw` or slabbed (grader, grade, cert #), purchase price/date, notes |
-| `sale` | source, `source_listing_id` (unique per source), variant (nullable) + `match_confidence`, raw title, price + currency (minor units), sold_at, sale type, grader/grade, URL |
+| `sale` | A completed sale: source, `source_listing_id` (unique per source), variant (nullable) + `match_confidence`, raw title, price + currency (minor units), sold_at, sale type, grader/grade, URL |
+| `listing` | An active ask, snapshotted per sync: source, `source_listing_id`, variant (nullable) + `match_confidence`, raw title, asking price or current bid, buying option, grader/grade, observed_at, URL. Kept separate from `sale` so an ask is never shown as a sale. |
 | `scan` | owner, source image, status |
 | `identification` | scan, crop image, bounding box, extracted fields (JSONB), confidence, **`model_provider`, `model_type`, `prompt_version`**, status (`pending`/`confirmed`/`rejected`), confirmed variant |
 | `grade_estimate` | item, PSA range (low/high), subgrades, centering measurements (front and back L/R, T/B), rationale, **`model_provider`, `model_type`, `prompt_version`** |
@@ -207,13 +210,19 @@ Each phase ends at a **checkpoint**: a demo script, a test report, an updated ar
 
 ### Phase 2: Market data pipeline
 **Enables:** Feature 3 (Get Comps), Feature 6 (nightly job), and estimated values on collection items.
-- `MarketDataSource` port with a `FixtureSource` adapter (deterministic, used in dev and tests) and the first real adapter (see §8).
+- `MarketDataSource` port with three adapters (see §8):
+  - `FixtureSource`: deterministic, used in dev and tests.
+  - `ManualImportSource`: comps the user enters, or uploads as CSV.
+  - `EbayBrowseSource`: active asks and supply counts. Built against your sandbox keyset, then pointed at production.
+- An eBay Taxonomy sync loads the trading-card fields and allowed values (player, set, parallel, grader, grade) into a lookup table that drives title parsing.
+- Every eBay link carries EPN affiliate tracking, which the Marketplace Insights application requires.
 - Sale normalization: parse title → grader/grade/parallel/serial, then match to a variant using rules first and vector similarity as a fallback, storing a `match_confidence`.
 - Kafka topics plus the ingestion worker (idempotent upserts on `source + source_listing_id`, retries with backoff, dead-letter topic).
-- Nightly Kubernetes CronJob that requests syncs for every tracked set. On-demand sync when a user clicks **Get Comps** returns the last 5 matching sales (same grade first, then nearest grade).
-- dbt: `stg_sales`, `int_sales_matched`, `mart_variant_value`, with freshness and uniqueness tests.
+- Nightly Kubernetes CronJob that requests syncs for every tracked set. On-demand sync when a user clicks **Get Comps** returns the last 5 matching sales (same grade first, then nearest grade), with current eBay asks shown separately and clearly labeled as asks.
+- dbt: `stg_sales`, `stg_listings`, `int_sales_matched`, `mart_variant_value` (from sales, falling back to the median ask when there are no sales, and labeled as such), with freshness and uniqueness tests.
+- eBay data is stored and retained according to the eBay API License Agreement. The Security persona reviews its retention terms before this phase ships.
 
-**Exit:** The nightly run against fixtures (and the real source, if approved) populates sales. Get Comps returns 5 sales or a clear empty state. Re-running the job creates no duplicates.
+**Exit:** The nightly run populates sales (from fixtures and manual imports) and listings (from eBay Browse). Get Comps returns 5 sales or a clear empty state. Re-running the job creates no duplicates.
 
 ### Phase 3: Card recognition
 **Enables:** Feature 2 (photo of a group of cards → individually identified cards).
@@ -237,7 +246,7 @@ Each phase ends at a **checkpoint**: a demo script, a test report, an updated ar
 
 ### Phase 5: Trends dashboard
 **Enables:** Feature 5 (trends across baseball, football, basketball, hockey).
-- dbt marts: `mart_sport_daily` (volume, median, index), `mart_set_trends`, `mart_player_momentum` (7/30/90-day price and volume change, with minimum-sample thresholds to filter noise).
+- dbt marts: `mart_sport_daily` (sale volume, active-listing supply, median, index), `mart_set_trends`, `mart_player_momentum` (7/30/90-day price and volume change, with minimum-sample thresholds to filter noise).
 - API endpoints over the marts, cached and refreshed after each nightly dbt build.
 - Web dashboard: sport tabs, price index and volume charts, rising/falling player lists, and set leaderboards. The dashboard labels its scope as "tracked sets" so it is clear the coverage isn't the whole market.
 
@@ -281,17 +290,21 @@ The current repo has a SQLite/vanilla-JS app. Two of its price sources no longer
 
 ## 8. Market data source
 
-**Terapeak Product Research cannot be the programmatic source.** eBay offers no public API for it. It exists only inside the Seller Hub UI, and eBay community threads asking for API access point to the restricted Insights API instead. Automating the Seller Hub UI would count as scraping under eBay's user agreement. It would also tie the product to a single seller account, which doesn't work for a multi-tenant app. It stays useful as a **manual research tool** for spot-checking our comps.
+We start with free sources, apply for the one free source of real sold comps, and add a paid provider only if we need one. Every source plugs into the same `MarketDataSource` port, so changing providers needs no schema change.
 
-| Source | Cost | Data | Fit |
+| Source | Cost | Provides | Status |
 |---|---|---|---|
-| **eBay Marketplace Insights API** | Free | Individual sold listings (the same sold data behind Terapeak) | Best fit for "last 5 sales". Limited release that requires approval. **Apply now**, since approval takes time. |
-| **SportsCardsPro API** | Low monthly subscription | Prices by card and grade | Cheapest paid option and a strong fit for valuation and trends. Before Phase 2, confirm whether it returns individual sale records. |
-| **Manual / CSV import** | Free | Comps the user enters (for example, copied from Terapeak) | Ships in Phase 2 as a `ManualImportSource` adapter, so collectors can add comps themselves without scraping. |
-| **Card Ladder / Market Movers / PSA APR** | Higher, or licensing deal | Sale-level, broad coverage | Revisit after v1 if coverage is too thin. |
-| **Scraping (130point, eBay, Terapeak UI)** | — | — | Excluded (terms of service). |
+| **Fixture data** | Free | Deterministic sales and listings | Phase 2, for dev and tests |
+| **Manual / CSV import** | Free | Comps collectors enter (including ones found in Terapeak) | Phase 2 |
+| **eBay Browse API** | Free (standard developer keys) | Active asks, listing supply, item specifics, image search | Phase 2 for market data. Image search is used in Phase 3. |
+| **eBay Taxonomy API** | Free | Trading-card fields and allowed values | Phase 2, used for parsing titles and seeding the catalog |
+| **eBay Marketplace Insights API** | Free once approved | Sold items, last 90 days | **Apply now.** Limited release: requires an EPN affiliate account, a Buy API application, a sandbox-reviewable app, and signed contracts. The adapter is built against the sandbox so the app is reviewable. |
+| **Paid provider** (SportsCardsPro, Card Ladder, Market Movers, PSA APR) | Paid | Varies | Only if Insights is denied or coverage is thin. SportsCardsPro has no free API tier. Its sister site PriceCharting returns current prices only (no sales history) and licenses data for internal use unless there's a commercial agreement. Confirm licensing for a multi-user app before buying. |
+| **Excluded** | — | — | Scraping 130point, eBay pages, or the Terapeak UI (terms of service). Terapeak has no API and stays a manual research tool. |
 
-**Plan:** Build Phase 2 against `FixtureSource` and `ManualImportSource`. Add the SportsCardsPro adapter and the eBay Marketplace Insights adapter as access is approved. Every source maps into the same `sale` model, so adding a source means writing an adapter plus a contract test, with no schema change.
+**Notes**
+- **Sold comps vs. asks.** Until Insights is approved, "Get Comps" shows manual and fixture sales, plus current eBay asks labeled clearly as asks.
+- **History.** Insights only covers 90 days, so the nightly job keeps its own history, subject to the retention terms in the eBay API License Agreement.
 
 ---
 
