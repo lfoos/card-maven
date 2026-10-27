@@ -76,7 +76,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: azure/setup-helm@v4
+      - uses: azure/setup-helm@v5
       - run: helm lint infra/helm/card-maven -f infra/helm/card-maven/ci-values.yaml --strict
       - run: helm template ci infra/helm/card-maven -f infra/helm/card-maven/ci-values.yaml > /dev/null
 
