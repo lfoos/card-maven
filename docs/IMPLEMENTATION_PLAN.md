@@ -17,7 +17,7 @@ Card Maven lets collectors track their sports card collections and value them ag
 | 5 | Infrastructure | Everything runs locally in phases 0–5 (Docker Compose, plus kind for Kubernetes manifests). Terraform is written and validated throughout but not applied to AWS until Phase 6. |
 | 6 | Warehouse | Postgres 16 with pgvector serves app data and embeddings. dbt runs on the same Postgres in a separate `analytics` schema. |
 | 7 | Tracked sets | **Baseball:** Bowman Chrome, Topps Chrome, Topps Series 1/2. **Basketball:** Prizm, Select, Mosaic, Obsidian. **Football:** Prizm, Select, Mosaic, Obsidian. **Hockey:** Upper Deck Series 1 (Young Guns). **Years 2024–2026.** Defined in config, not code (see §9). |
-| 8 | Code | GitHub repo `lfoos/card-maven`. Current code is tagged `legacy-v0` and replaced on `main` (see §7). |
+| 8 | Code | GitHub repo `lfoos/card-maven`. Current code is tagged `legacy-v0` and replaced on `master` (see §7). |
 | 9 | Personas | Condensed summary per change in chat. Full persona output goes in `docs/changes/`. |
 | 10 | Models | Anthropic API first, behind a `VisionModel` port. Every identification and grade estimate stores `model_provider`, `model_type`, and `prompt_version` so results can be compared and reprocessed with another model. |
 
@@ -273,8 +273,8 @@ In chat, each change gets a summary of 5–10 lines. The full reports live in th
 
 The current repo has a SQLite/vanilla-JS app. Two of its price sources no longer work: the eBay Finding API it calls was decommissioned on 2025-02-04, and it scrapes 130point (a terms-of-service risk). The plan:
 
-- Tag the current `main` as `legacy-v0` so it is preserved and recoverable.
-- Replace it on `main` through the Phase 0 PR.
+- Tag the current `master` as `legacy-v0` so it is preserved and recoverable.
+- Replace it on `master` through the Phase 0 PR.
 - Carry forward only ideas worth keeping (the scan-card prompt and field list) into the new design. No code is carried over.
 
 ---
