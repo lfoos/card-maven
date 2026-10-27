@@ -54,9 +54,7 @@ jobs:
         working-directory: apps/web
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10
+      - uses: pnpm/action-setup@v4  # version comes from package.json#packageManager
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -100,6 +98,7 @@ jobs:
     name: Container images
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false  # report every image, not just the first failure
       matrix:
         include:
           - { name: api, file: services/api/Dockerfile, context: . }

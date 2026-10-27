@@ -1,7 +1,8 @@
 # syntax=docker/dockerfile:1.7
 # Static build served by unprivileged nginx. Build context: apps/web
 FROM node:22-slim AS build
-RUN corepack enable
+# Install the exact pnpm from package.json#packageManager (no corepack key fetches).
+RUN npm install -g pnpm@10.28.0
 WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
