@@ -31,7 +31,7 @@ jobs:
       CARD_MAVEN_TEST_DATABASE_URL: postgresql+psycopg://card_maven:card_maven@localhost:5432/card_maven_test
       CARD_MAVEN_TEST_S3_ENDPOINT: http://localhost:8333
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
@@ -72,7 +72,7 @@ jobs:
       run:
         working-directory: apps/web
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v4
         with:
           package_json_file: apps/web/package.json  # version from packageManager
@@ -96,7 +96,7 @@ jobs:
     name: Helm chart
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: azure/setup-helm@v4
       - run: helm lint infra/helm/card-maven -f infra/helm/card-maven/ci-values.yaml --strict
       - run: helm template ci infra/helm/card-maven -f infra/helm/card-maven/ci-values.yaml > /dev/null
@@ -105,7 +105,7 @@ jobs:
     name: Terraform
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: hashicorp/setup-terraform@v3
       - run: terraform fmt -check -recursive infra/terraform
       - name: Validate
@@ -128,7 +128,7 @@ jobs:
           - { name: workers, file: services/workers/Dockerfile, context: . }
           - { name: web, file: apps/web/Dockerfile, context: apps/web }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v3
       - uses: docker/build-push-action@v6
         with:
