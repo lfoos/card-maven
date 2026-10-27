@@ -10,3 +10,4 @@ One folder per feature-sized change: `NNNN-short-slug/`. Each holds the full out
 | # | Change | Phase |
 |---|---|---|
 | [0001](0001-foundation/plan.md) | Foundation | 0 |
+| [0002](0002-collection/plan.md) | Identity and collection | 1 |

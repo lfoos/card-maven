@@ -17,12 +17,13 @@ from sqlalchemy.orm import Session
 from card_maven.catalog.models import Brand, Sport
 from card_maven.market.models import TrackedSet
 from card_maven.shared.errors import InvalidInputError
+from card_maven.shared.text import slugify
 
 MIN_YEAR, MAX_YEAR = 1860, 2100
 
 
 def brand_slug(name: str) -> str:
-    return "-".join(name.lower().split())
+    return slugify(name)
 
 
 class YearRange(BaseModel):

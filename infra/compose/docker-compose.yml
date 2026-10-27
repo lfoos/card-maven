@@ -12,6 +12,8 @@ x-app-env: &app-env
   CARD_MAVEN_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
   CARD_MAVEN_OIDC_ISSUER: http://localhost:8080/realms/card-maven
   CARD_MAVEN_OIDC_JWKS_URL: http://keycloak:8080/realms/card-maven/protocol/openid-connect/certs
+  CARD_MAVEN_S3_ENDPOINT_URL: http://seaweedfs:8333
+  CARD_MAVEN_S3_PUBLIC_ENDPOINT_URL: http://localhost:8333  # what the browser uses
 
 services:
   postgres:
@@ -70,8 +72,12 @@ services:
 
   # S3-compatible object storage (Apache-2.0). MinIO CE no longer publishes images.
   seaweedfs:
-    image: chrislusf/seaweedfs:latest
-    command: server -dir=/data -s3 -s3.port=8333 -s3.config=/etc/seaweedfs/s3.json
+    image: chrislusf/seaweedfs:4.51
+    # Each bucket reserves volumes. Small (1 GB, sparse) volumes and 100 slots
+    # leave room for many buckets without needing much disk.
+    command: >-
+      server -dir=/data -master.volumeSizeLimitMB=1024 -volume.max=100
+      -s3 -s3.port=8333 -s3.config=/etc/seaweedfs/s3.json
     ports: ["8333:8333"]
     volumes:
       - seaweedfs-data:/data

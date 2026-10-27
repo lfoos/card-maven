@@ -2,6 +2,7 @@
 SHELL := /bin/bash
 COMPOSE := docker compose -f infra/compose/docker-compose.yml
 export CARD_MAVEN_TEST_DATABASE_URL ?= postgresql+psycopg://card_maven:card_maven@localhost:5432/card_maven_test
+export CARD_MAVEN_TEST_S3_ENDPOINT ?= http://localhost:8333
 
 .DEFAULT_GOAL := help
 
@@ -10,8 +11,11 @@ help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
 
 # ---- Setup -------------------------------------------------------------------
-.PHONY: install
-install: ## Install Python and web dependencies, and git hooks
+.PHONY: doctor install
+doctor: ## Check that Docker, uv, Node 22, and pnpm are installed and running
+	@scripts/doctor.sh
+
+install: doctor ## Install Python and web dependencies, and git hooks
 	uv sync
 	cd apps/web && pnpm install
 	uv run pre-commit install
@@ -32,7 +36,7 @@ logs: ## Follow local stack logs
 	$(COMPOSE) logs -f
 
 # ---- Database ----------------------------------------------------------------
-.PHONY: migrate migration seed bootstrap
+.PHONY: migrate migration seed storage bootstrap
 migrate: ## Apply database migrations
 	uv run alembic -c db/alembic.ini upgrade head
 
@@ -44,7 +48,10 @@ seed: ## Load sports/brands and sync tracked sets from config/
 	uv run card-maven seed
 	uv run card-maven sync-tracked-sets
 
-bootstrap: up migrate seed ## Start the stack, migrate, and seed (first run)
+storage: ## Create the local media bucket and its CORS rules
+	uv run card-maven init-storage
+
+bootstrap: doctor up migrate seed storage ## Start the stack, migrate, seed, and set up storage (first run)
 
 # ---- Run ---------------------------------------------------------------------
 .PHONY: api web relay
@@ -58,7 +65,7 @@ relay: ## Run the outbox relay
 	CARD_MAVEN_LOG_JSON=false uv run card-maven outbox-relay
 
 # ---- Quality -----------------------------------------------------------------
-.PHONY: lint format typecheck test test-python test-web check-config check
+.PHONY: lint format typecheck test test-python test-web check-config openapi check
 lint: ## Lint Python and web
 	uv run ruff check .
 	uv run ruff format --check .
@@ -80,6 +87,9 @@ test-web: ## Web tests with coverage
 	cd apps/web && pnpm coverage
 
 test: test-python test-web ## All tests
+
+openapi: ## Regenerate contracts/openapi.json from the API code
+	uv run python -c "from card_maven_api.openapi import write_spec; write_spec()" > contracts/openapi.json
 
 check-config: ## Validate config/ files
 	uv run card-maven check-config

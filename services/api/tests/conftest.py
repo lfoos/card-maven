@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 import jwt
@@ -9,13 +10,16 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
 from flask import Flask
 from flask.testing import FlaskClient
-from sqlalchemy import Engine
 from sqlalchemy.orm import sessionmaker
 
+from card_maven.catalog.reference_data import load_reference_data, seed_reference_data
 from card_maven.shared.config import Settings
-from card_maven.shared.db import make_engine, make_session_factory
+from card_maven.shared.db import make_engine, make_session_factory, session_scope
+from card_maven.shared.storage.memory import InMemoryObjectStore
 from card_maven_api.app import create_app
 from card_maven_api.auth.tokens import TokenVerifier
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
 
 ISSUER = "https://idp.test/realms/card-maven"
 AUDIENCE = "card-maven-api"
@@ -90,6 +94,7 @@ def settings() -> Settings:
         cors_origins=["http://localhost:5173"],
         oidc_issuer=ISSUER,
         oidc_audience=AUDIENCE,
+        rate_limits_enabled=False,  # enabled explicitly in test_rate_limits.py
     )
 
 
@@ -100,6 +105,11 @@ def unreachable_session_factory() -> sessionmaker:  # type: ignore[type-arg]
         "postgresql+psycopg://nobody:nothing@127.0.0.1:1/none", connect_args={"connect_timeout": 1}
     )
     return make_session_factory(engine)
+
+
+@pytest.fixture
+def store() -> InMemoryObjectStore:
+    return InMemoryObjectStore()
 
 
 @pytest.fixture
@@ -120,7 +130,31 @@ def client(app: Flask) -> FlaskClient:
 
 
 @pytest.fixture
-def db_app(settings: Settings, verifier: TokenVerifier, engine: Engine) -> Flask:
+def db_app(
+    settings: Settings,
+    verifier: TokenVerifier,
+    committing_session_factory: sessionmaker,  # type: ignore[type-arg]
+    store: InMemoryObjectStore,
+) -> Flask:
+    """A real-database app. Requests commit; tables are truncated after the test."""
+    with session_scope(committing_session_factory) as session:
+        seed_reference_data(session, load_reference_data(REPO_ROOT / "config/reference_data.yaml"))
     return create_app(
-        settings, session_factory=make_session_factory(engine), token_verifier=verifier
+        settings,
+        session_factory=committing_session_factory,
+        token_verifier=verifier,
+        object_store=store,
     )
+
+
+@pytest.fixture
+def auth(make_token: TokenFactory) -> Callable[..., dict[str, str]]:
+    """Authorization headers for a named test user: ``auth("alice")``."""
+
+    def headers(subject: str = "alice", **claims: Any) -> dict[str, str]:
+        token = make_token(
+            sub=subject, email=f"{subject}@example.com", name=subject.title(), **claims
+        )
+        return {"Authorization": f"Bearer {token}"}
+
+    return headers

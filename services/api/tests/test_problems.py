@@ -42,7 +42,7 @@ def test_domain_error_includes_detail_and_extra(failing_app: Flask) -> None:
     assert status == 422
     assert body["type"] == "https://cardmaven.app/problems/invalid_input"
     assert body["detail"] == "year must be between 1860 and 2100"
-    assert body["field"] == "year"
+    assert body["errors"] == [{"loc": "year", "message": "year must be between 1860 and 2100"}]
 
 
 def test_not_found_error(failing_app: Flask) -> None:

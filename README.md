@@ -2,13 +2,13 @@
 
 Card Maven helps sports card collectors track what they own and value it against the market. You add cards by hand or by photographing a group of them, see recent comparable sales, get an estimated PSA grade, and follow price and volume trends across baseball, basketball, football, and hockey.
 
-> **Status: Phase 0 (foundation).** The platform skeleton is in place: schema, local stack, auth, event pipeline, CI. User-facing features start in Phase 1. See the [implementation plan](docs/IMPLEMENTATION_PLAN.md) for the roadmap. The previous SQLite app is preserved on the [`legacy-v0`](https://github.com/lfoos/card-maven/tree/legacy-v0) branch.
+> **Status: Phase 1 (collection).** Collectors can sign in, add and edit cards, upload front and back photos, and browse their collection. Market data arrives in Phase 2. See the [implementation plan](docs/IMPLEMENTATION_PLAN.md) for the roadmap. The previous SQLite app is preserved on the [`legacy-v0`](https://github.com/lfoos/card-maven/tree/legacy-v0) branch.
 
 ## Features
 
 | Feature | Phase | Status |
 |---|---|---|
-| Collection: sport, year, brand, player, parallel, card, team, grade, estimated value | 1 | Schema ready |
+| Collection: sport, year, brand, player, parallel, card, team, grade, estimated value | 1 | **Available** (estimated value shows once Phase 2 lands) |
 | Comps: last 5 sales for a card | 2 | Planned |
 | Nightly market sync for tracked sets | 2 | Tracked-set config ready |
 | Photo of many cards → cropped and identified, user confirms | 3 | Planned |
@@ -22,6 +22,8 @@ A React web app talks to a Flask API. Slow work (market sync, photo recognition,
 - [Architecture overview and diagram](docs/architecture/README.md). This is the source of truth and is kept current with every change.
 - [Authentication design](docs/architecture/auth.md)
 - [Architecture decision records](docs/adr/README.md)
+- [API reference](docs/api/README.md) (OpenAPI contract: [`contracts/openapi.json`](contracts/openapi.json))
+- [User guide: managing your collection](docs/user-guide/collection.md)
 
 | Layer | Technology |
 |---|---|
@@ -36,7 +38,7 @@ A React web app talks to a Flask API. Slow work (market sync, photo recognition,
 
 ## Quick start
 
-**Prerequisites:**
+**Prerequisites** (`make doctor` checks them and prints install commands):
 - Docker (with Compose v2)
 - [uv](https://docs.astral.sh/uv/) 0.5+
 - Node.js 22
@@ -45,8 +47,8 @@ A React web app talks to a Flask API. Slow work (market sync, photo recognition,
 ```bash
 git clone https://github.com/lfoos/card-maven.git
 cd card-maven
-make install      # Python and web dependencies, git hooks
-make bootstrap    # start Postgres, Kafka, SeaweedFS, Keycloak; migrate; seed
+make install      # checks prerequisites, then installs Python and web dependencies, git hooks
+make bootstrap    # start Postgres, Kafka, SeaweedFS, Keycloak; migrate; seed; create the photo bucket
 make api          # http://localhost:8000  (terminal 1)
 make web          # http://localhost:5173  (terminal 2)
 ```
@@ -67,6 +69,8 @@ Run `make help` for everything. The most-used targets:
 | `make migrate` | Apply database migrations |
 | `make migration m="add sale table"` | Generate a migration from model changes |
 | `make seed` | Load sports and brands, and sync tracked sets from `config/` |
+| `make doctor` | Check that Docker, uv, Node 22, and pnpm are installed and running |
+| `make openapi` | Regenerate `contracts/openapi.json` after changing the API (then `cd apps/web && pnpm gen:api`) |
 | `make check` | Lint, typecheck, validate config, and run all tests (what CI runs) |
 | `make relay` | Run the outbox relay (publishes events to Kafka) |
 
@@ -102,6 +106,7 @@ services/workers/      Kafka workers and the `card-maven` admin CLI
 packages/card_maven/   Shared domain: identity, catalog, collection, market, shared infra
 db/migrations/         Alembic migrations (the schema's source of truth)
 config/                Tracked sets and reference data (validated YAML)
+contracts/openapi.json HTTP API contract (generated, drift-checked)
 contracts/events/      Event envelope and payload JSON Schemas
 infra/compose/         Local Docker stack
 infra/helm/            Kubernetes chart
