@@ -40,7 +40,7 @@ A React web app talks to a Flask API. Slow work (market sync, photo recognition,
 
 **Prerequisites** (`make doctor` checks them and prints install commands):
 - Docker (with Compose v2)
-- [uv](https://docs.astral.sh/uv/) 0.5+
+- [uv](https://docs.astral.sh/uv/) 0.5+ (installs the pinned Python 3.13 from `.python-version` automatically)
 - Node.js 22
 - pnpm 10
 

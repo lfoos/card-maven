@@ -51,6 +51,14 @@
 | QA-3 | **Limiter state leaked between app instances.** A module-level `Limiter` let a second app overwrite the first app's default limits. Also, Flask-Limiter keeps only a weak reference, so a per-app limiter was garbage-collected mid-request. | One limiter per app, held on `app.extensions`. Routes declare limits with `@rate_limited(...)`. |
 | QA-4 | **Local SeaweedFS ran out of volumes.** Each bucket reserves volumes, but the default is 8 slots of 30 GB. Auto-sizing (`-volume.max=0`) was tried and was worse: it divides free disk by 30 GB, so a laptop with 29 GB free got **one** slot and uploads to a second bucket failed with a 500. | Compose and CI run SeaweedFS with 1 GB volumes and 100 slots (`-master.volumeSizeLimitMB=1024 -volume.max=100`). Volumes are sparse, so this needs little disk. The image is pinned to 4.51, and tests share one bucket. |
 
+## Found in CI
+
+| # | Defect | Fix |
+|---|---|---|
+| QA-5 | **Unhandled rejection on a failed delete.** The error message showed, but the rejected promise escaped. Vitest flags that as an error, and an earlier local check read only the pass count, not the exit code. | Delete uses `mutate` with an `onSuccess` navigation; failures show only through the mutation's error state. Local verification now checks exit codes. |
+| QA-6 | **Python version drift.** CI used the runner's Python 3.12. 3.13 renamed HTTP 422's phrase ("Unprocessable Entity" → "Unprocessable Content"), so the generated OpenAPI contract differed and the drift test failed. | `.python-version` pins 3.13 for uv everywhere: laptops, CI, and the Docker images (already 3.13). CI now annotates each failing test, so failures are readable without the raw log. |
+| QA-7 | **SeaweedFS unreachable in CI.** `-ip=127.0.0.1` bound it to the container's own loopback, so the published port couldn't reach it. | CI uses the same flags as the compose file (no `-ip`). |
+
 ## Known limitations (accepted)
 
 - **Stale pending images.** Abandoned uploads leave `pending` image rows and possibly orphaned objects. A sweeper lands with the Phase 2 scheduler.

@@ -54,7 +54,14 @@ jobs:
       - name: Validate config files
         run: uv run card-maven check-config
       - name: Test
-        run: uv run pytest --cov --cov-report=term --cov-fail-under=90
+        run: |
+          set -o pipefail
+          uv run pytest --cov --cov-report=term --cov-fail-under=90 2>&1 | tee pytest.log || {
+            # Surface each failure as an annotation so it's visible without the raw log.
+            grep -E '^(FAILED|ERROR) ' pytest.log | head -20 | sed 's/^/::error title=pytest::/'
+            grep -E '^E  ' pytest.log | head -20 | sed 's/^/::error title=pytest detail::/'
+            exit 1
+          }
       - name: Dependency audit
         run: uv export --frozen --no-dev --no-emit-workspace --format requirements-txt > /tmp/requirements.txt && uvx pip-audit --strict -r /tmp/requirements.txt
 
