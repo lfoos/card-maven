@@ -1,6 +1,6 @@
 # Card Maven: Implementation Plan
 
-**Status:** Draft for review · **Author:** Planner persona · **Date:** 2026-10-26
+**Status:** Decisions confirmed. Awaiting go-ahead for Phase 0 · **Author:** Planner persona · **Date:** 2026-10-26
 
 Card Maven lets collectors track their sports card collections and value them against live market data. This plan rebuilds the foundation on the target stack in seven gated phases. Each phase ends with a checkpoint, and work does not continue until it is approved.
 
@@ -11,13 +11,13 @@ Card Maven lets collectors track their sports card collections and value them ag
 | # | Topic | Decision |
 |---|---|---|
 | 1 | Sales data | A `MarketDataSource` port with pluggable adapters and one source-agnostic sales model. Start with the cheapest viable source and add more comprehensive sources later. |
-| 2 | Users | Collectors. Multi-tenant from day one, with industry-standard signup, auth, and baseline security. Every user-owned row carries `owner_id`. Isolation is enforced at the repository layer (no row-level security yet). |
+| 2 | Users | Collectors. Multi-tenant from day one. **Auth is OIDC** (Authorization Code + PKCE) with Keycloak locally and Cognito on AWS. See [auth.md](architecture/auth.md). Every user-owned row carries `owner_id`, and isolation is enforced at the repository layer. |
 | 3 | Identification | Vision-model identification, always followed by a user confirmation step. A `ReferenceCatalog` port is stubbed so a licensed checklist can be added later without schema changes. |
 | 4 | Grading | v1 combines LLM vision with deterministic OpenCV centering and shows an estimated grade range with a disclaimer. Front and back images are required. |
 | 5 | Infrastructure | Everything runs locally in phases 0–5 (Docker Compose, plus kind for Kubernetes manifests). Terraform is written and validated throughout but not applied to AWS until Phase 6. |
 | 6 | Warehouse | Postgres 16 with pgvector serves app data and embeddings. dbt runs on the same Postgres in a separate `analytics` schema. |
-| 7 | Tracked sets | **Baseball:** Bowman Chrome, Topps Chrome, Topps Series 1/2. **Basketball:** Prizm, Select, Mosaic, Obsidian. **Football:** Prizm, Select, Mosaic, Obsidian. **Hockey:** Upper Deck Series 1 (Young Guns). Stored as seed data, not code. |
-| 8 | Code | GitHub repo `lfoos/card-maven`. Existing code is overwritten (see §7). |
+| 7 | Tracked sets | **Baseball:** Bowman Chrome, Topps Chrome, Topps Series 1/2. **Basketball:** Prizm, Select, Mosaic, Obsidian. **Football:** Prizm, Select, Mosaic, Obsidian. **Hockey:** Upper Deck Series 1 (Young Guns). **Years 2024–2026.** Defined in config, not code (see §9). |
+| 8 | Code | GitHub repo `lfoos/card-maven`. Current code is tagged `legacy-v0` and replaced on `main` (see §7). |
 | 9 | Personas | Condensed summary per change in chat. Full persona output goes in `docs/changes/`. |
 | 10 | Models | Anthropic API first, behind a `VisionModel` port. Every identification and grade estimate stores `model_provider`, `model_type`, and `prompt_version` so results can be compared and reprocessed with another model. |
 
@@ -279,13 +279,47 @@ The current repo has a SQLite/vanilla-JS app. Two of its price sources no longer
 
 ---
 
-## 8. Market data source (recommendation)
+## 8. Market data source
+
+**Terapeak Product Research cannot be the programmatic source.** eBay offers no public API for it. It exists only inside the Seller Hub UI, and eBay community threads asking for API access point to the restricted Insights API instead. Automating the Seller Hub UI would count as scraping under eBay's user agreement. It would also tie the product to a single seller account, which doesn't work for a multi-tenant app. It stays useful as a **manual research tool** for spot-checking our comps.
 
 | Source | Cost | Data | Fit |
 |---|---|---|---|
-| **eBay Marketplace Insights API** | Free | Individual sold listings | Best fit for "last 5 sales". Limited release that requires approval. **Apply now**, since approval takes time. |
-| **SportsCardsPro API** | Low monthly subscription | Prices by card and grade | Cheapest paid option and a strong fit for valuation and trends. I couldn't confirm from its public docs whether it exposes individual sale records. I'll verify before Phase 2. |
+| **eBay Marketplace Insights API** | Free | Individual sold listings (the same sold data behind Terapeak) | Best fit for "last 5 sales". Limited release that requires approval. **Apply now**, since approval takes time. |
+| **SportsCardsPro API** | Low monthly subscription | Prices by card and grade | Cheapest paid option and a strong fit for valuation and trends. Before Phase 2, confirm whether it returns individual sale records. |
+| **Manual / CSV import** | Free | Comps the user enters (for example, copied from Terapeak) | Ships in Phase 2 as a `ManualImportSource` adapter, so collectors can add comps themselves without scraping. |
 | **Card Ladder / Market Movers / PSA APR** | Higher, or licensing deal | Sale-level, broad coverage | Revisit after v1 if coverage is too thin. |
-| **Scraping (130point, eBay pages)** | — | — | Excluded (terms of service). |
+| **Scraping (130point, eBay, Terapeak UI)** | — | — | Excluded (terms of service). |
 
-**Plan:** Build Phase 2 against `FixtureSource`. Add the SportsCardsPro adapter first, if a subscription is approved, and the eBay Marketplace Insights adapter when access is granted. Because all sources map into the same `sale` model, adding a source is an adapter plus a contract test, with no schema change.
+**Plan:** Build Phase 2 against `FixtureSource` and `ManualImportSource`. Add the SportsCardsPro adapter and the eBay Marketplace Insights adapter as access is approved. Every source maps into the same `sale` model, so adding a source means writing an adapter plus a contract test, with no schema change.
+
+---
+
+## 9. Tracked sets configuration
+
+The nightly job reads a declarative config file, `config/tracked_sets.yaml`. To expand coverage, you add a line and open a PR. No code changes or migrations are needed.
+
+```yaml
+defaults:
+  years: { from: 2024, to: 2026 }   # widen here to backfill every set
+sets:
+  - { sport: baseball,   brand: Bowman,      name: Bowman Chrome }
+  - { sport: baseball,   brand: Topps,       name: Topps Chrome }
+  - { sport: baseball,   brand: Topps,       name: Topps Series 1 }
+  - { sport: baseball,   brand: Topps,       name: Topps Series 2 }
+  - { sport: basketball, brand: Panini,      name: Prizm }
+  - { sport: basketball, brand: Panini,      name: Select }
+  - { sport: basketball, brand: Panini,      name: Mosaic }
+  - { sport: basketball, brand: Panini,      name: Obsidian }
+  - { sport: football,   brand: Panini,      name: Prizm }
+  - { sport: football,   brand: Panini,      name: Select }
+  - { sport: football,   brand: Panini,      name: Mosaic }
+  - { sport: football,   brand: Panini,      name: Obsidian }
+  - { sport: hockey,     brand: Upper Deck,  name: Series 1, focus: Young Guns }
+  # per-set override example:
+  # - { sport: baseball, brand: Bowman, name: Bowman Draft, years: { from: 2020 } }
+```
+
+- **Schema validation.** The file is validated (Pydantic) in CI and at startup. A typo fails fast with a clear error.
+- **Database sync.** On deploy, a sync job upserts the config into the `tracked_set` table. Removing an entry deactivates it instead of deleting it, so its sales history is kept.
+- **Backfill.** Adding a year or a set triggers a one-time historical backfill. A `make backfill SET=... YEARS=...` command is available for manual runs.
