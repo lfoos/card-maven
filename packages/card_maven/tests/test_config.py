@@ -12,6 +12,9 @@ def test_defaults_target_local_stack() -> None:
 
 DEPLOYED = {
     "CARD_MAVEN_DATABASE_URL": "postgresql+psycopg://app:s3cret@db.internal:5432/card_maven",
+    "CARD_MAVEN_S3_ENDPOINT_URL": "",
+    "CARD_MAVEN_S3_ACCESS_KEY_ID": "",
+    "CARD_MAVEN_S3_SECRET_ACCESS_KEY": "",
     "CARD_MAVEN_OIDC_ISSUER": "https://auth.cardmaven.app",
     "CARD_MAVEN_OIDC_JWKS_URL": "https://auth.cardmaven.app/.well-known/jwks.json",
 }
@@ -75,4 +78,31 @@ class TestDeploymentGuards:
         monkeypatch.setenv("CARD_MAVEN_ENVIRONMENT", "local")
         monkeypatch.setenv("CARD_MAVEN_CORS_ORIGINS", '["*"]')
         with pytest.raises(ValueError, match="explicit origins"):
+            Settings(_env_file=None)  # type: ignore[call-arg]
+
+
+class TestStorageDeploymentGuards:
+    @pytest.fixture(autouse=True)
+    def deployed(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        for name, value in DEPLOYED.items():
+            monkeypatch.setenv(name, value)
+        monkeypatch.setenv("CARD_MAVEN_ENVIRONMENT", "prod")
+
+    def test_iam_role_settings_accepted(self) -> None:
+        settings = Settings(_env_file=None)  # type: ignore[call-arg]
+        assert settings.s3_endpoint_url is None
+        assert settings.s3_access_key_id is None
+
+    @pytest.mark.parametrize(
+        ("name", "value"),
+        [
+            ("CARD_MAVEN_S3_ENDPOINT_URL", "http://localhost:8333"),
+            ("CARD_MAVEN_S3_ACCESS_KEY_ID", "card-maven-local"),
+        ],
+    )
+    def test_local_storage_defaults_rejected(
+        self, monkeypatch: pytest.MonkeyPatch, name: str, value: str
+    ) -> None:
+        monkeypatch.setenv(name, value)
+        with pytest.raises(ValueError, match="IAM role"):
             Settings(_env_file=None)  # type: ignore[call-arg]

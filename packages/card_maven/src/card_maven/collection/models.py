@@ -1,11 +1,21 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
 
-from sqlalchemy import BigInteger, CheckConstraint, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import (
+    BigInteger,
+    CheckConstraint,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from card_maven.catalog.models import CardVariant
@@ -26,6 +36,11 @@ class Grader(StrEnum):
     SGC = "SGC"
     CGC = "CGC"
     TAG = "TAG"
+
+
+class ImageStatus(StrEnum):
+    PENDING = "pending"  # upload URL issued; object not yet verified
+    READY = "ready"  # object verified and attached to its item
 
 
 class ImageKind(StrEnum):
@@ -77,6 +92,10 @@ class CollectionItem(UUIDPrimaryKeyMixin, TimestampMixin, OwnedMixin, Base):
             "purchase_price_minor IS NULL OR purchase_price_minor >= 0",
             name="purchase_price_non_negative",
         ),
+        # Serves the default "newest first" list and its keyset pagination.
+        Index(
+            "ix_collection_item_owner_recent", "owner_id", text("created_at DESC"), text("id DESC")
+        ),
     )
 
     @property
@@ -106,10 +125,23 @@ class Image(UUIDPrimaryKeyMixin, TimestampMixin, OwnedMixin, Base):
     width: Mapped[int | None]
     height: Mapped[int | None]
     sha256: Mapped[str] = mapped_column(String(64), index=True)
+    status: Mapped[str] = mapped_column(
+        String(16), default=ImageStatus.PENDING, server_default=ImageStatus.PENDING.value
+    )
+    uploaded_at: Mapped[datetime | None]
 
     collection_item: Mapped[CollectionItem | None] = relationship(back_populates="images")
 
     __table_args__ = (
         CheckConstraint("kind IN ('front', 'back', 'scan_source', 'crop')", name="kind_valid"),
         CheckConstraint("byte_size > 0", name="byte_size_positive"),
+        CheckConstraint("status IN ('pending', 'ready')", name="status_valid"),
+        # At most one live front and one live back per item.
+        Index(
+            "uq_image_live_side",
+            "collection_item_id",
+            "kind",
+            unique=True,
+            postgresql_where=text("status = 'ready' AND kind IN ('front', 'back')"),
+        ),
     )

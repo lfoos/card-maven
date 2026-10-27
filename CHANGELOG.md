@@ -4,6 +4,35 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.2.0] - Phase 1: Identity and collection
+
+Collectors can now sign in and manage a collection.
+
+### Added
+- **Collection.** Add, edit, view, and delete cards with sport, year, brand, set, card number, name, players, team, subset, parallel and print run, rookie/auto/memorabilia flags, raw or graded condition (PSA, BGS, SGC, CGC, TAG; half-point grades; cert number), serial number, price paid, acquisition date, and notes.
+- **Browsing.** Grid and table views; free-text search (player, card, set, team, parallel, number); filters by sport, year, brand, and condition; five sort orders; cursor-based "Load more" paging. Filters live in the URL.
+- **Photos.** Front and back photos (JPEG, PNG, WebP, HEIC, up to 15 MB), uploaded straight to object storage and verified server-side before they appear.
+- **Shared catalog.** Cards resolve against a crowd-built catalog with case-insensitive matching and set and player autocomplete.
+- **Accounts.** Collectors are created on first sign-in. `GET /api/v1/me`.
+- **API.**
+  - OpenAPI 3.1 contract generated from the code (`contracts/openapi.json`), served at `/api/v1/openapi.json`; the web app's TypeScript types are generated from it.
+  - Field-level validation errors in problem+json.
+  - Per-user rate limits.
+- **Tooling.**
+  - `make doctor` checks prerequisites; `make bootstrap` runs it first and now also creates the photo bucket (`card-maven init-storage`).
+  - `make openapi`, plus storage tests against real SeaweedFS in CI.
+- **Docs.** [API reference](docs/api/README.md) and [collection user guide](docs/user-guide/collection.md).
+
+### Changed
+- **Natural keys.** Set, card-number, and parallel matching is case-insensitive (migration `0002`, which also enables `pg_trgm`).
+- **Local storage.** SeaweedFS is pinned to 4.51 and runs with small volumes, so photo uploads don't fail when a laptop is low on free disk.
+
+### Security
+- Owner-scoped repositories: another collector's cards and photos return 404 everywhere.
+- Upload policy pins key, type, and exact size; server verifies signature and SHA-256.
+- Deployed environments refuse local storage credentials.
+- `X-Forwarded-For` trusted only for a configured number of proxies.
+
 ## [0.1.0] - Phase 0: Foundation
 
 Replaces the legacy single-file app (preserved on the `legacy-v0` branch) with the new platform foundation. No user-facing features yet.

@@ -8,10 +8,12 @@ from sqlalchemy import (
     CheckConstraint,
     Column,
     ForeignKey,
+    Index,
     SmallInteger,
     String,
     Table,
     UniqueConstraint,
+    func,
     text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -62,10 +64,7 @@ class CardSet(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     cards: Mapped[list[Card]] = relationship(back_populates="card_set")
     parallels: Mapped[list[Parallel]] = relationship(back_populates="card_set")
 
-    __table_args__ = (
-        UniqueConstraint("sport_code", "brand_slug", "year", "name"),
-        CheckConstraint("year BETWEEN 1860 AND 2100", name="year_range"),
-    )
+    __table_args__ = (CheckConstraint("year BETWEEN 1860 AND 2100", name="year_range"),)
 
 
 card_player = Table(
@@ -81,7 +80,7 @@ class Player(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "player"
 
     sport_code: Mapped[str] = mapped_column(ForeignKey("sport.code"))
-    full_name: Mapped[str] = mapped_column(String(200), index=True)
+    full_name: Mapped[str] = mapped_column(String(200))
     # Ids in external systems (league, data providers), keyed by provider.
     external_ids: Mapped[dict[str, Any]] = mapped_column(
         default=dict, server_default=text("'{}'::jsonb")
@@ -118,8 +117,6 @@ class Card(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     variants: Mapped[list[CardVariant]] = relationship(back_populates="card")
 
-    __table_args__ = (UniqueConstraint("set_id", "card_number"),)
-
 
 class Parallel(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """A finish or print variation, e.g. "Gold Refractor" /50.
@@ -146,8 +143,6 @@ class Parallel(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     __table_args__ = (
         CheckConstraint("print_run IS NULL OR print_run > 0", name="print_run_positive"),
-        # NULLS NOT DISTINCT (Postgres 15+): a set-wide "Refractor" can't be duplicated.
-        UniqueConstraint("set_id", "subset", "name", postgresql_nulls_not_distinct=True),
     )
 
     @property
@@ -169,3 +164,38 @@ class CardVariant(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     parallel: Mapped[Parallel] = relationship()
 
     __table_args__ = (UniqueConstraint("card_id", "parallel_id"),)
+
+
+# ---- Natural-key and search indexes ------------------------------------------
+# Natural keys are case- and whitespace-insensitive ("Bowman Chrome" and
+# "bowman chrome" are one set), so they are expression indexes rather than
+# column constraints. Trigram (pg_trgm) indexes serve ILIKE search/autocomplete.
+
+
+def _trigram(name: str, column: Any) -> Index:
+    return Index(name, column, postgresql_using="gin", postgresql_ops={column.key: "gin_trgm_ops"})
+
+
+Index(
+    "uq_card_set_natural_key",
+    CardSet.sport_code,
+    CardSet.brand_slug,
+    CardSet.year,
+    func.lower(CardSet.name),
+    unique=True,
+)
+_trigram("ix_card_set_name_trgm", CardSet.name)
+
+Index("uq_card_set_number", Card.set_id, func.upper(Card.card_number), unique=True)
+_trigram("ix_card_name_trgm", Card.name)
+
+Index(
+    "uq_parallel_natural_key",
+    Parallel.set_id,
+    func.coalesce(Parallel.subset, ""),
+    func.lower(Parallel.name),
+    unique=True,
+)
+
+Index("ix_player_sport_name", Player.sport_code, func.lower(Player.full_name))
+_trigram("ix_player_full_name_trgm", Player.full_name)

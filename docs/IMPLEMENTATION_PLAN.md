@@ -1,6 +1,6 @@
 # Card Maven: Implementation Plan
 
-**Status:** Approved (PR #2). Phase 0 in progress.
+**Status:** Approved (PR #2). Phase 0 done. Phase 1 in review.
 
 Card Maven lets collectors track their sports card collections and value them against live market data. This plan rebuilds the foundation on the target stack in seven gated phases. Each phase ends with a checkpoint, and work does not continue until it is approved.
 

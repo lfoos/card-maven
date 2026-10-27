@@ -29,12 +29,24 @@ jobs:
           --health-timeout 3s --health-retries 20
     env:
       CARD_MAVEN_TEST_DATABASE_URL: postgresql+psycopg://card_maven:card_maven@localhost:5432/card_maven_test
+      CARD_MAVEN_TEST_S3_ENDPOINT: http://localhost:8333
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
       - run: uv sync --frozen
+      - name: Start SeaweedFS (real S3 policy enforcement tests)
+        run: |
+          docker run -d --name seaweedfs -p 8333:8333 \
+            -v "$PWD/infra/compose/seaweedfs/s3.json:/etc/seaweedfs/s3.json:ro" \
+            chrislusf/seaweedfs:4.51 server -master.volumeSizeLimitMB=1024 -volume.max=100 \
+            -s3 -s3.port=8333 -s3.config=/etc/seaweedfs/s3.json
+          for i in $(seq 1 90); do
+            [ "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8333/)" = "403" ] && exit 0
+            sleep 1
+          done
+          docker logs seaweedfs; exit 1
       - name: Lint
         run: uv run ruff check . && uv run ruff format --check .
       - name: Typecheck
@@ -42,7 +54,14 @@ jobs:
       - name: Validate config files
         run: uv run card-maven check-config
       - name: Test
-        run: uv run pytest --cov --cov-report=term --cov-fail-under=90
+        run: |
+          set -o pipefail
+          uv run pytest --cov --cov-report=term --cov-fail-under=90 2>&1 | tee pytest.log || {
+            # Surface each failure as an annotation so it's visible without the raw log.
+            grep -E '^(FAILED|ERROR) ' pytest.log | head -20 | sed 's/^/::error title=pytest::/'
+            grep -E '^E  ' pytest.log | head -20 | sed 's/^/::error title=pytest detail::/'
+            exit 1
+          }
       - name: Dependency audit
         run: uv export --frozen --no-dev --no-emit-workspace --format requirements-txt > /tmp/requirements.txt && uvx pip-audit --strict -r /tmp/requirements.txt
 
@@ -66,6 +85,8 @@ jobs:
       - run: pnpm format:check
       - run: pnpm lint
       - run: pnpm typecheck
+      - name: API types match contracts/openapi.json
+        run: pnpm check:api
       - run: pnpm coverage
       - run: pnpm build
       - name: Dependency audit

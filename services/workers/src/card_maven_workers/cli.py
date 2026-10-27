@@ -18,6 +18,7 @@ from card_maven.shared.db import make_engine, make_session_factory, session_scop
 from card_maven.shared.errors import CardMavenError
 from card_maven.shared.logging import configure_logging
 from card_maven.shared.outbox import OutboxRelay
+from card_maven.shared.storage.s3 import S3ObjectStore
 from card_maven_workers.kafka import KafkaPublisher
 from card_maven_workers.relay import run_relay
 
@@ -119,6 +120,24 @@ def sync_tracked_sets_command(obj: Context, dry_run: bool, config_path: Path | N
         return
     summary = ", ".join(f"{k}={v}" for k, v in asdict(result).items())
     click.echo(f"{'dry run: ' if dry_run else ''}tracked sets synced ({summary})")
+
+
+@cli.command("init-storage")
+@click.pass_obj
+def init_storage(obj: Context) -> None:
+    """Create the media bucket and allow browser uploads (local/test only).
+
+    On AWS, Terraform owns the bucket and its CORS rules.
+    """
+    if obj.settings.is_deployed:
+        raise click.ClickException("init-storage is for local/test; Terraform manages AWS buckets")
+    store = S3ObjectStore.from_settings(obj.settings)
+    try:
+        created = store.ensure_bucket(cors_origins=obj.settings.cors_origins)
+    except Exception as exc:  # boto raises many types; report any as a CLI failure
+        raise click.ClickException(f"could not reach object storage: {exc}") from exc
+    verb = "created" if created else "already exists;"
+    click.echo(f"bucket {obj.settings.s3_bucket} {verb} CORS allows {obj.settings.cors_origins}")
 
 
 @cli.command("outbox-relay")

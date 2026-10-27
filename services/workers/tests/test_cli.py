@@ -139,3 +139,37 @@ class TestDatabaseCommands:
         result = CliRunner().invoke(cli, ["outbox-relay"])
         assert result.exit_code == 0, result.output
         assert calls[0]["poll_interval_seconds"] == 1.0
+
+
+class TestInitStorage:
+    def test_creates_then_reports_existing(
+        self, env: None, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from moto import mock_aws
+
+        monkeypatch.setenv("CARD_MAVEN_S3_ENDPOINT_URL", "")
+        with mock_aws():
+            first = CliRunner().invoke(cli, ["init-storage"])
+            second = CliRunner().invoke(cli, ["init-storage"])
+        assert first.exit_code == 0, first.output
+        assert "bucket card-maven-media created" in first.output
+        assert "already exists" in second.output
+
+    def test_refuses_in_deployed_environments(
+        self, env: None, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CARD_MAVEN_ENVIRONMENT", "dev")
+        monkeypatch.setenv("CARD_MAVEN_DATABASE_URL", "postgresql+psycopg://a:b@db:5432/x")
+        monkeypatch.setenv("CARD_MAVEN_OIDC_ISSUER", "https://idp")
+        monkeypatch.setenv("CARD_MAVEN_OIDC_JWKS_URL", "https://idp/jwks")
+        monkeypatch.setenv("CARD_MAVEN_S3_ENDPOINT_URL", "")
+        monkeypatch.setenv("CARD_MAVEN_S3_ACCESS_KEY_ID", "")
+        result = CliRunner().invoke(cli, ["init-storage"])
+        assert result.exit_code == 1
+        assert "Terraform" in result.output
+
+    def test_unreachable_storage(self, env: None, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("CARD_MAVEN_S3_ENDPOINT_URL", "http://127.0.0.1:1")
+        result = CliRunner().invoke(cli, ["init-storage"])
+        assert result.exit_code == 1
+        assert "could not reach object storage" in result.output

@@ -70,7 +70,7 @@ class TestCatalog:
     def test_duplicate_card_number_in_set(self, seeded_session: Session) -> None:
         variant = make_variant(seeded_session)
         seeded_session.add(Card(set_id=variant.card.set_id, card_number="CPA-JW", name="Dup"))
-        assert_violates(seeded_session, "uq_card_set_id_card_number")
+        assert_violates(seeded_session, "uq_card_set_number")
 
     def test_duplicate_variant(self, seeded_session: Session) -> None:
         variant = make_variant(seeded_session)
@@ -80,7 +80,7 @@ class TestCatalog:
     def test_set_wide_parallel_unique_even_with_null_subset(self, seeded_session: Session) -> None:
         variant = make_variant(seeded_session, parallel_name="Refractor")
         seeded_session.add(Parallel(set_id=variant.card.set_id, name="Refractor"))
-        assert_violates(seeded_session, "uq_parallel_set_id_subset_name")
+        assert_violates(seeded_session, "uq_parallel_natural_key")
 
     def test_same_parallel_name_allowed_in_different_subsets(self, seeded_session: Session) -> None:
         variant = make_variant(seeded_session, parallel_name="Refractor")
@@ -232,3 +232,64 @@ class TestIdentity:
         db_session.flush()  # same subject from another issuer is a different person
         db_session.add(User(idp_issuer="https://idp.test", idp_subject="same"))
         assert_violates(db_session, "uq_app_user_idp_issuer_idp_subject")
+
+
+class TestPhaseOneConstraints:
+    def test_set_names_are_unique_case_insensitively(self, seeded_session: Session) -> None:
+        seeded_session.add(
+            CardSet(sport_code="baseball", brand_slug="topps", year=2025, name="Chrome")
+        )
+        seeded_session.flush()
+        seeded_session.add(
+            CardSet(sport_code="baseball", brand_slug="topps", year=2025, name="CHROME")
+        )
+        assert_violates(seeded_session, "uq_card_set_natural_key")
+
+    def test_card_numbers_are_unique_case_insensitively(self, seeded_session: Session) -> None:
+        variant = make_variant(seeded_session)
+        seeded_session.add(Card(set_id=variant.card.set_id, card_number="cpa-jw", name="Dup"))
+        assert_violates(seeded_session, "uq_card_set_number")
+
+    def test_one_live_front_per_item(self, seeded_session: Session) -> None:
+        user = make_user(seeded_session)
+        item = CollectionItem(owner_id=user.id, variant=make_variant(seeded_session))
+        seeded_session.add(item)
+        seeded_session.flush()
+
+        def image(key: str, status: str) -> Image:
+            return Image(
+                owner_id=user.id,
+                collection_item_id=item.id,
+                kind="front",
+                storage_key=key,
+                content_type="image/jpeg",
+                byte_size=1,
+                sha256="c" * 64,
+                status=status,
+            )
+
+        # Any number of pending uploads may coexist with one live photo...
+        seeded_session.add_all(
+            [image("k1", "ready"), image("k2", "pending"), image("k3", "pending")]
+        )
+        seeded_session.flush()
+        # ...but never two live ones.
+        seeded_session.add(image("k4", "ready"))
+        assert_violates(seeded_session, "uq_image_live_side")
+
+    def test_image_status_defaults_to_pending(self, seeded_session: Session) -> None:
+        user = make_user(seeded_session)
+        img = Image(
+            owner_id=user.id,
+            kind="crop",
+            storage_key="k",
+            content_type="image/png",
+            byte_size=1,
+            sha256="d" * 64,
+        )
+        seeded_session.add(img)
+        seeded_session.flush()
+        seeded_session.refresh(img)
+        assert img.status == "pending"
+        img.status = "archived"
+        assert_violates(seeded_session, "ck_image_status_valid")

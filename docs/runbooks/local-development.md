@@ -18,7 +18,7 @@ make web         # terminal 2: http://localhost:5173
 | Keycloak | http://localhost:8080 (realm `card-maven`) | admin console: `admin` / `admin` |
 | Postgres | `localhost:5432`, databases `card_maven` and `card_maven_test` | `card_maven` / `card_maven` |
 | Kafka | `localhost:9092` (containers use `kafka:29092`) | none |
-| SeaweedFS (S3 API) | http://localhost:8333 | `card-maven-local` / `card-maven-local-secret` |
+| SeaweedFS (S3 API) | http://localhost:8333, bucket `card-maven-media` | `card-maven-local` / `card-maven-local-secret` |
 
 ## Phase 0 smoke test
 
@@ -43,6 +43,17 @@ make web         # terminal 2: http://localhost:5173
      --topic market.sync.requested --from-beginning --max-messages 1
    ```
 
+## Phase 1 smoke test
+
+1. `make bootstrap` (rerun it after pulling: it applies migration `0002` and creates the photo bucket).
+2. Open http://localhost:5173 and sign in.
+3. **Collection → Add card.** Enter `Bowman`, `Bowman Chrome`, `2025`, `CPA-JW`, `JJ Wetherholt`, parallel `Gold Refractor` with print run `50`, serial `12`, condition Graded / PSA / 10. Save. You land on the card's page.
+4. Upload a front photo (any JPEG). It appears after "Checking file…". Upload another to replace it.
+5. Add a second card. In **Add card**, start typing `chrome` in Set; the suggestion appears.
+6. Back on **Collection**: switch Grid ↔ Table, search `wether`, filter by year. The address bar updates.
+7. Sign out, register a second account, and open the first card's URL. You see "That card isn't in your collection."
+8. Delete a card. It disappears from the list.
+
 ## Running everything in containers
 
 ```bash
@@ -60,4 +71,6 @@ This also runs the API (port 8000) and the outbox relay in containers. Run migra
 | `UnknownTopicOrPartitionException` | Topics are created by `kafka-init`. Run `make up` again, or add the topic to `infra/compose/kafka/topics.txt`. |
 | Sign-in loops or fails with "invalid redirect" | The web app must run on `http://localhost:5173`, which is the redirect URI registered in the realm. |
 | API returns 401 for every call | The token's `aud` must include `card-maven-api`. Re-import the realm with `make reset && make bootstrap`. |
+| Photo upload fails with a CORS error | Run `make storage` to (re)apply the bucket's CORS rules for `http://localhost:5173`. |
+| `make install` / `make bootstrap` says a tool is missing | Follow the install hint `make doctor` prints, then open a new terminal. |
 | Port already in use | Stop whatever holds 5432, 8000, 8080, 8333, or 9092, or change the port mapping in `docker-compose.yml`. |

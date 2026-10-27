@@ -6,12 +6,14 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, SecretStr, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 Environment = Literal["local", "test", "dev", "prod"]
 DEPLOYED_ENVIRONMENTS = frozenset({"dev", "prod"})
 _LOCAL_DATABASE_URL = "postgresql+psycopg://card_maven:card_maven@localhost:5432/card_maven"
+_LOCAL_S3_ENDPOINT = "http://localhost:8333"
+_LOCAL_S3_KEY_ID = "card-maven-local"
 
 
 class Settings(BaseSettings):
@@ -35,11 +37,40 @@ class Settings(BaseSettings):
 
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
 
+    # Object storage. Locally: SeaweedFS from the compose stack. On AWS: S3 with
+    # IAM role credentials (leave the endpoint and keys unset).
+    s3_bucket: str = "card-maven-media"
+    s3_region: str = "us-east-1"
+    s3_endpoint_url: str | None = _LOCAL_S3_ENDPOINT
+    s3_public_endpoint_url: str | None = None
+    s3_access_key_id: SecretStr | None = SecretStr(_LOCAL_S3_KEY_ID)
+    s3_secret_access_key: SecretStr | None = SecretStr("card-maven-local-secret")
+
+    # Rate limiting (Flask-Limiter storage). memory:// is per-process; use a
+    # shared store (e.g. redis://) when running more than one API replica.
+    rate_limit_storage_uri: str = "memory://"
+    rate_limit_default: str = "300/minute"
+    rate_limits_enabled: bool = True
+    # X-Forwarded-* hops to trust (1 behind an ALB). 0 trusts none.
+    trusted_proxy_count: int = Field(default=0, ge=0, le=5)
+
     tracked_sets_path: Path = Path("config/tracked_sets.yaml")
     reference_data_path: Path = Path("config/reference_data.yaml")
 
     outbox_batch_size: int = Field(default=100, ge=1, le=1000)
     outbox_poll_interval_seconds: float = Field(default=1.0, gt=0)
+
+    @field_validator(
+        "s3_endpoint_url",
+        "s3_public_endpoint_url",
+        "s3_access_key_id",
+        "s3_secret_access_key",
+        mode="before",
+    )
+    @classmethod
+    def _empty_means_unset(cls, value: object) -> object:
+        # An empty env var (CARD_MAVEN_S3_ENDPOINT_URL=) means "use the AWS default".
+        return None if value == "" else value
 
     @model_validator(mode="after")
     def _safe_for_deployment(self) -> Settings:
@@ -52,6 +83,14 @@ class Settings(BaseSettings):
             for name in ("oidc_issuer", "oidc_jwks_url"):
                 if not getattr(self, name).startswith("https://"):
                     raise ValueError(f"{name} must use https outside local/test")
+            key_id = self.s3_access_key_id
+            if self.s3_endpoint_url == _LOCAL_S3_ENDPOINT or (
+                key_id is not None and key_id.get_secret_value() == _LOCAL_S3_KEY_ID
+            ):
+                raise ValueError(
+                    "s3 settings are the local defaults; on AWS leave the endpoint and keys "
+                    "unset so the IAM role is used"
+                )
         return self
 
     @property

@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from flask import Flask, Response, g, jsonify
+from pydantic import ValidationError
 from werkzeug.exceptions import HTTPException
 
 from card_maven.shared.errors import CardMavenError
@@ -37,6 +38,22 @@ def problem(
     return response
 
 
+def _field_errors(error: ValidationError) -> list[dict[str, str]]:
+    errors = []
+    for item in error.errors(include_url=False, include_input=False):
+        loc = ".".join(str(part) for part in item["loc"]) or "body"
+        message = item["msg"].removeprefix("Value error, ")
+        errors.append({"loc": loc, "message": message})
+    return errors
+
+
+def validation_problem(error: ValidationError) -> Response:
+    """Request or domain validation failure: 422 with per-field errors."""
+    errors = _field_errors(error)
+    detail = errors[0]["message"] if len(errors) == 1 else f"{len(errors)} fields are invalid"
+    return problem(422, "invalid_input", "Invalid input", detail, errors=errors)
+
+
 def register_problem_handlers(app: Flask) -> None:
     @app.errorhandler(CardMavenError)
     def _domain_error(error: CardMavenError) -> Response:
@@ -44,7 +61,12 @@ def register_problem_handlers(app: Flask) -> None:
             log.error("request_failed", code=error.code, detail=error.detail)
             # Server-side detail can contain internals; clients get the title.
             return problem(error.status, error.code, error.title)
-        return problem(error.status, error.code, error.title, error.detail, **error.extra)
+        extra = dict(error.extra)
+        field = extra.pop("field", None)
+        if field and error.status == 422:
+            # Same shape as request validation, so clients handle one format.
+            extra["errors"] = [{"loc": field, "message": error.detail}]
+        return problem(error.status, error.code, error.title, error.detail, **extra)
 
     @app.errorhandler(HTTPException)
     def _http_error(error: HTTPException) -> Response:

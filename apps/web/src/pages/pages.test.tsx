@@ -8,7 +8,6 @@ import type { ApiClient } from "../api/client";
 import { ApiError } from "../api/errors";
 import { mockAuth } from "../test/mockAuth";
 import { AuthCallbackPage } from "./AuthCallbackPage";
-import { CollectionPage } from "./CollectionPage";
 import { HomePage } from "./HomePage";
 import { NotFoundPage } from "./NotFoundPage";
 import { TrendsPage } from "./TrendsPage";
@@ -47,12 +46,6 @@ describe("HomePage", () => {
 });
 
 describe("static pages", () => {
-  it("collection empty state", () => {
-    withProviders(<CollectionPage />);
-    expect(screen.getByRole("heading", { name: "Collection" })).toBeInTheDocument();
-    expect(screen.getByText("No cards yet.")).toBeInTheDocument();
-  });
-
   it("trends empty state", () => {
     withProviders(<TrendsPage />);
     expect(screen.getByRole("heading", { name: "Trends" })).toBeInTheDocument();

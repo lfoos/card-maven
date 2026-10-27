@@ -6,6 +6,8 @@ requires-python = ">=3.12"
 dependencies = [
   "card-maven-core",
   "flask>=3.1",
+  "flask-openapi3>=4.3",
+  "flask-limiter>=3.10",
   "pyjwt[crypto]>=2.10",
   "gunicorn>=23.0",
 ]
