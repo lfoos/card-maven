@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cardmaven.app/schemas/events/envelope.json",
+  "title": "Card Maven event envelope",
+  "description": "CloudEvents-style envelope shared by every Kafka event. Mirrors card_maven.shared.events.Event.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "type", "source", "time", "specversion", "data"],
+  "properties": {
+    "id": { "type": "string", "format": "uuid", "description": "Unique per event; consumers deduplicate on it." },
+    "type": {
+      "type": "string",
+      "pattern": "^[a-z]+(\\.[a-z_]+)+\\.v[1-9][0-9]*$",
+      "description": "<context>.<entity>.<action>.v<N>. The topic is the type without its version."
+    },
+    "source": { "type": "string", "minLength": 1, "description": "The producing service." },
+    "time": { "type": "string", "format": "date-time" },
+    "subject": { "type": ["string", "null"], "description": "Partition key; events about one subject stay ordered." },
+    "specversion": { "const": "1.0" },
+    "data": { "type": "object", "description": "Payload, validated by the event type's own schema." }
+  }
+}

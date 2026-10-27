@@ -1,6 +1,6 @@
 # Card Maven: Implementation Plan
 
-**Status:** Decisions confirmed. Awaiting go-ahead for Phase 0 · **Author:** Planner persona · **Date:** 2026-10-26
+**Status:** Approved (PR #2). Phase 0 in progress.
 
 Card Maven lets collectors track their sports card collections and value them against live market data. This plan rebuilds the foundation on the target stack in seven gated phases. Each phase ends with a checkpoint, and work does not continue until it is approved.
 
@@ -24,6 +24,8 @@ Card Maven lets collectors track their sports card collections and value them ag
 ---
 
 ## 2. Architecture
+
+> The living version of this diagram is [`docs/architecture/README.md`](architecture/README.md). Changes go there.
 
 ```mermaid
 flowchart LR
@@ -53,7 +55,7 @@ flowchart LR
 
   subgraph Data
     PG[("Postgres 16 + pgvector<br/>app · embeddings · analytics")]
-    S3[("Object storage<br/>MinIO local / S3 AWS")]
+    S3[("Object storage<br/>SeaweedFS local / S3 AWS")]
     DBT["dbt<br/>staging → marts"]
   end
 
@@ -94,7 +96,7 @@ flowchart LR
 - **Transactional outbox.** The API never writes to Postgres and Kafka in the same request. It writes an outbox row in the same transaction, and a relay publishes the row. This prevents lost or phantom events.
 - **Versioned event contracts.** Events use a CloudEvents-style envelope with a JSON Schema per type in `contracts/events/`. Consumers are idempotent and keyed on event id. Failed messages go to dead-letter topics.
 - **Async for slow work.** Scans, grade estimates, and comp fetches return `202 Accepted` with a job resource. The UI polls the job (SSE can come later).
-- **Presigned uploads.** Image bytes go from the browser straight to S3/MinIO and never pass through the API.
+- **Presigned uploads.** Image bytes go from the browser straight to S3-compatible storage and never pass through the API.
 
 ---
 
@@ -165,7 +167,7 @@ card-maven/
 ├── infra/
 │   ├── terraform/modules/{network,eks,rds,msk,s3,cognito,ecr}/  envs/{dev,prod}/
 │   ├── k8s/                       # Helm chart for all services
-│   └── compose/docker-compose.yml # Postgres, Kafka (KRaft), MinIO, Keycloak
+│   └── compose/docker-compose.yml # Postgres, Kafka (KRaft), SeaweedFS (S3), Keycloak
 ├── docs/
 │   ├── architecture/              # diagram (source of truth), C4 context/container views
 │   ├── adr/                       # one ADR per significant decision
@@ -188,7 +190,7 @@ Each phase ends at a **checkpoint**: a demo script, a test report, an updated ar
 ### Phase 0: Foundation
 **Enables:** a working skeleton every later phase builds on (no user features yet).
 - Archive the legacy app (see §7). Scaffold the monorepo, Makefile, and pre-commit.
-- Docker Compose stack: Postgres + pgvector, Kafka (KRaft), MinIO, Keycloak.
+- Docker Compose stack: Postgres + pgvector, Kafka (KRaft), SeaweedFS (S3-compatible; MinIO CE is no longer distributed), Keycloak.
 - Shared Python package with config, structured logging, error model, DB session, outbox, and event envelope. Health endpoints.
 - React shell with routing, auth context, API client, and design tokens.
 - Full catalog and collection schema with Alembic migrations, plus seed data (sports, brands, tracked sets).

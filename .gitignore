@@ -1,12 +1,40 @@
+# Python
 __pycache__/
-*.pyc
-*.pyo
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Node
+node_modules/
+apps/web/dist/
+apps/web/coverage/
+
+# Environment and secrets
 .env
-*.db
-*.sqlite3
-instance/
-uploads/
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+backend.hcl
+crash.log
+
+# Editors and OS
 .DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Local agent state
 .claude/
 .superpowers/
-venv/

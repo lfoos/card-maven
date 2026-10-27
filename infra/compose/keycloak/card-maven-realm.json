@@ -1,0 +1,66 @@
+{
+  "realm": "card-maven",
+  "enabled": true,
+  "displayName": "Card Maven",
+  "registrationAllowed": true,
+  "registrationEmailAsUsername": true,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "rememberMe": true,
+  "verifyEmail": false,
+  "bruteForceProtected": true,
+  "failureFactor": 5,
+  "passwordPolicy": "length(12) and notUsername",
+  "accessTokenLifespan": 900,
+  "ssoSessionIdleTimeout": 1800,
+  "revokeRefreshToken": true,
+  "refreshTokenMaxReuse": 0,
+  "roles": {
+    "realm": [
+      { "name": "collector", "description": "A Card Maven user" },
+      { "name": "admin", "description": "Operator access" }
+    ]
+  },
+  "defaultRole": { "name": "default-roles-card-maven", "composite": true, "composites": { "realm": ["collector"] } },
+  "clients": [
+    {
+      "clientId": "card-maven-web",
+      "name": "Card Maven web app",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": ["http://localhost:5173/*"],
+      "webOrigins": ["http://localhost:5173"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:5173*"
+      },
+      "protocolMappers": [
+        {
+          "name": "card-maven-api audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "card-maven-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "collector@example.com",
+      "email": "collector@example.com",
+      "firstName": "Local",
+      "lastName": "Collector",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "card-maven-local-only", "temporary": false }],
+      "realmRoles": ["collector"]
+    }
+  ]
+}

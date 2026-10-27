@@ -1,0 +1,14 @@
+# Sports and brands known to the catalog. Seeded idempotently by `make seed`.
+# Rows are never deleted by seeding, since cards may already reference them.
+
+sports:
+  - { code: baseball,   name: Baseball }
+  - { code: basketball, name: Basketball }
+  - { code: football,   name: Football }
+  - { code: hockey,     name: Hockey }
+
+brands:
+  - { slug: bowman,     name: Bowman }
+  - { slug: topps,      name: Topps }
+  - { slug: panini,     name: Panini }
+  - { slug: upper-deck, name: Upper Deck }

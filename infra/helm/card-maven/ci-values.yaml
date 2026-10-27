@@ -1,0 +1,5 @@
+# Values used by `helm lint` / `helm template` in CI.
+config:
+  oidcIssuer: https://idp.example/realms/card-maven
+  oidcJwksUrl: https://idp.example/realms/card-maven/protocol/openid-connect/certs
+  kafkaBootstrapServers: kafka:9092

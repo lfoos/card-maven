@@ -1,0 +1,109 @@
+# Local development stack. Start with `make up` from the repo root.
+#
+# Infrastructure services start by default. The Card Maven services themselves
+# run on the host during development (`make api`, `make web`), or in containers
+# with `docker compose --profile app up`.
+name: card-maven
+
+x-app-env: &app-env
+  CARD_MAVEN_ENVIRONMENT: local
+  CARD_MAVEN_LOG_JSON: "false"
+  CARD_MAVEN_DATABASE_URL: postgresql+psycopg://card_maven:card_maven@postgres:5432/card_maven
+  CARD_MAVEN_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+  CARD_MAVEN_OIDC_ISSUER: http://localhost:8080/realms/card-maven
+  CARD_MAVEN_OIDC_JWKS_URL: http://keycloak:8080/realms/card-maven/protocol/openid-connect/certs
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: card_maven
+      POSTGRES_PASSWORD: card_maven
+      POSTGRES_DB: card_maven
+    ports: ["5432:5432"]
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U card_maven -d card_maven"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  kafka:
+    image: apache/kafka:3.9.0
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      # HOST for tools on your machine; DOCKER for containers on this network.
+      KAFKA_LISTENERS: HOST://:9092,DOCKER://:29092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: HOST://localhost:9092,DOCKER://kafka:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: HOST:PLAINTEXT,DOCKER:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: DOCKER
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      # Topics are declared explicitly (kafka-init) so typos fail loudly.
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+    ports: ["9092:9092"]
+    volumes: [kafka-data:/var/lib/kafka/data]
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --list"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+
+  kafka-init:
+    image: apache/kafka:3.9.0
+    depends_on: { kafka: { condition: service_healthy } }
+    volumes: [./kafka/topics.txt:/topics.txt:ro]
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        grep -Ev '^\s*(#|$)' /topics.txt | while read -r topic partitions; do
+          /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists \
+            --topic "$$topic" --partitions "$${partitions:-3}" --replication-factor 1
+        done
+    restart: "no"
+
+  # S3-compatible object storage (Apache-2.0). MinIO CE no longer publishes images.
+  seaweedfs:
+    image: chrislusf/seaweedfs:latest
+    command: server -dir=/data -s3 -s3.port=8333 -s3.config=/etc/seaweedfs/s3.json
+    ports: ["8333:8333"]
+    volumes:
+      - seaweedfs-data:/data
+      - ./seaweedfs/s3.json:/etc/seaweedfs/s3.json:ro
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    command: start-dev --import-realm
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HEALTH_ENABLED: "true"
+    ports: ["8080:8080"]
+    volumes: [./keycloak/card-maven-realm.json:/opt/keycloak/data/import/card-maven-realm.json:ro]
+
+  api:
+    profiles: [app]
+    build: { context: ../.., dockerfile: services/api/Dockerfile }
+    environment: *app-env
+    ports: ["8000:8000"]
+    depends_on: { postgres: { condition: service_healthy } }
+
+  outbox-relay:
+    profiles: [app]
+    build: { context: ../.., dockerfile: services/workers/Dockerfile }
+    command: ["outbox-relay"]
+    environment: *app-env
+    depends_on:
+      postgres: { condition: service_healthy }
+      kafka-init: { condition: service_completed_successfully }
+
+volumes:
+  postgres-data:
+  kafka-data:
+  seaweedfs-data:
