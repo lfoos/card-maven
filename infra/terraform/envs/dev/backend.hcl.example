@@ -1,0 +1,6 @@
+# Copy to backend.hcl (gitignored) and fill in.
+bucket       = "card-maven-terraform-state-<account-id>"
+key          = "dev/terraform.tfstate"
+region       = "us-west-2"
+use_lockfile = true
+encrypt      = true

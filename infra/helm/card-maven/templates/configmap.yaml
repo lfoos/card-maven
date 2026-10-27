@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "card-maven.fullname" . }}-config
+  labels: {{- include "card-maven.labels" . | nindent 4 }}
+data:
+  CARD_MAVEN_ENVIRONMENT: {{ .Values.config.environment | quote }}
+  CARD_MAVEN_LOG_LEVEL: {{ .Values.config.logLevel | quote }}
+  CARD_MAVEN_LOG_JSON: "true"
+  CARD_MAVEN_OIDC_ISSUER: {{ required "config.oidcIssuer is required" .Values.config.oidcIssuer | quote }}
+  CARD_MAVEN_OIDC_AUDIENCE: {{ .Values.config.oidcAudience | quote }}
+  CARD_MAVEN_OIDC_JWKS_URL: {{ required "config.oidcJwksUrl is required" .Values.config.oidcJwksUrl | quote }}
+  CARD_MAVEN_KAFKA_BOOTSTRAP_SERVERS: {{ required "config.kafkaBootstrapServers is required" .Values.config.kafkaBootstrapServers | quote }}
+  CARD_MAVEN_CORS_ORIGINS: {{ .Values.config.corsOrigins | quote }}

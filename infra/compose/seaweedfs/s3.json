@@ -1,0 +1,9 @@
+{
+  "identities": [
+    {
+      "name": "card-maven-local",
+      "credentials": [{ "accessKey": "card-maven-local", "secretKey": "card-maven-local-secret" }],
+      "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+# Sets the nightly market job syncs.
+#
+# To expand coverage, edit this file and open a PR. No code or migration needed.
+#   - Widen `defaults.years` to backfill every set.
+#   - Override years for one set with `years: { from: 2020 }` (either bound optional).
+#   - Removing an entry deactivates it; its history is kept.
+# `sport` must match a code and `brand` a name in config/reference_data.yaml.
+# Validated in CI (`make check-config`) and on every sync.
+
+defaults:
+  years: { from: 2024, to: 2026 }
+
+sets:
+  # Baseball
+  - { sport: baseball,   brand: Bowman,     name: Bowman Chrome }
+  - { sport: baseball,   brand: Topps,      name: Topps Chrome }
+  - { sport: baseball,   brand: Topps,      name: Topps Series 1 }
+  - { sport: baseball,   brand: Topps,      name: Topps Series 2 }
+
+  # Basketball
+  - { sport: basketball, brand: Panini,     name: Prizm }
+  - { sport: basketball, brand: Panini,     name: Select }
+  - { sport: basketball, brand: Panini,     name: Mosaic }
+  - { sport: basketball, brand: Panini,     name: Obsidian }
+
+  # Football
+  - { sport: football,   brand: Panini,     name: Prizm }
+  - { sport: football,   brand: Panini,     name: Select }
+  - { sport: football,   brand: Panini,     name: Mosaic }
+  - { sport: football,   brand: Panini,     name: Obsidian }
+
+  # Hockey
+  - { sport: hockey,     brand: Upper Deck, name: Series 1, focus: Young Guns }

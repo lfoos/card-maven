@@ -1,0 +1,18 @@
+[project]
+name = "card-maven-api"
+version = "0.1.0"
+description = "Card Maven HTTP API (Flask)"
+requires-python = ">=3.12"
+dependencies = [
+  "card-maven-core",
+  "flask>=3.1",
+  "pyjwt[crypto]>=2.10",
+  "gunicorn>=23.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/card_maven_api"]

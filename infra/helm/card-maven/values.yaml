@@ -1,0 +1,47 @@
+# Image coordinates. In CI, `tag` is the commit SHA.
+image:
+  registry: ""          # e.g. 123456789012.dkr.ecr.us-west-2.amazonaws.com
+  api: card-maven-api
+  workers: card-maven-workers
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+# Non-secret settings, rendered into a ConfigMap as CARD_MAVEN_* env vars.
+config:
+  environment: dev
+  logLevel: INFO
+  oidcIssuer: ""
+  oidcAudience: card-maven-api
+  oidcJwksUrl: ""
+  kafkaBootstrapServers: ""
+  corsOrigins: '["http://localhost:5173"]'
+
+# Secrets are never stored in values. Point at an existing Secret (created by
+# External Secrets / Secrets Manager in AWS) with a `database-url` key.
+secrets:
+  existingSecret: card-maven-secrets
+
+serviceAccount:
+  create: true
+  annotations: {}       # e.g. eks.amazonaws.com/role-arn for IRSA (Phase 6)
+
+api:
+  replicas: 2
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 512Mi }
+  service:
+    port: 80
+
+outboxRelay:
+  enabled: true
+  replicas: 1           # safe to scale: rows are claimed with SKIP LOCKED
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { memory: 256Mi }
+
+migrations:
+  enabled: true         # Helm pre-install/pre-upgrade hook: alembic upgrade head
+
+trackedSets:
+  sync: true            # post-install/post-upgrade hook: seed + sync-tracked-sets

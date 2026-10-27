@@ -1,0 +1,70 @@
+[project]
+name = "card-maven"
+version = "0.1.0"
+description = "Card Maven monorepo (Python workspace root)"
+requires-python = ">=3.12"
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["packages/card_maven", "services/api", "services/workers"]
+
+[tool.uv.sources]
+card-maven-core = { workspace = true }
+card-maven-api = { workspace = true }
+card-maven-workers = { workspace = true }
+
+[dependency-groups]
+dev = [
+  "card-maven-core",
+  "card-maven-api",
+  "card-maven-workers",
+  "pytest>=8.3",
+  "pytest-cov>=6.0",
+  "ruff>=0.8",
+  "mypy>=1.13",
+  "types-PyYAML>=6.0",
+  "cryptography>=43",
+  "jsonschema[format]>=4.23",
+  "pre-commit>=4.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["packages/card_maven/src", "services/api/src", "services/workers/src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "N", "S", "SIM", "RUF", "PT", "DTZ", "TID"]
+ignore = ["S101"]  # assert is how pytest works
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["S105", "S106", "S108"]
+"db/migrations/**" = ["N999", "E501"]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+mypy_path = ["packages/card_maven/src", "services/api/src", "services/workers/src"]
+explicit_package_bases = true
+
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-markers --import-mode=importlib"
+testpaths = ["packages/card_maven/tests", "services/api/tests", "services/workers/tests"]
+markers = ["db: requires a Postgres database (CARD_MAVEN_TEST_DATABASE_URL)"]
+filterwarnings = ["error"]
+
+[tool.coverage.run]
+branch = true
+source = ["card_maven", "card_maven_api", "card_maven_workers"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+exclude_also = ["if TYPE_CHECKING:", "raise NotImplementedError", "@abstractmethod"]

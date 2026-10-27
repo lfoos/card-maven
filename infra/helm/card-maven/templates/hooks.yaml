@@ -1,0 +1,48 @@
+{{- if .Values.migrations.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "card-maven.fullname" . }}-migrate
+  labels: {{- include "card-maven.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "0"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ include "card-maven.serviceAccountName" . }}
+      containers:
+        - name: migrate
+          image: {{ include "card-maven.image" (list . .Values.image.api) }}
+          command: ["alembic", "-c", "db/alembic.ini", "upgrade", "head"]
+          env:
+            - name: CARD_MAVEN_DATABASE_URL
+              valueFrom: { secretKeyRef: { name: {{ .Values.secrets.existingSecret }}, key: database-url } }
+          {{- include "card-maven.containerSecurity" . | nindent 10 }}
+{{- end }}
+{{- if .Values.trackedSets.sync }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "card-maven.fullname" . }}-sync-tracked-sets
+  labels: {{- include "card-maven.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ include "card-maven.serviceAccountName" . }}
+      containers:
+        - name: sync
+          image: {{ include "card-maven.image" (list . .Values.image.workers) }}
+          command: ["sh", "-c", "card-maven seed && card-maven sync-tracked-sets"]
+          {{- include "card-maven.env" . | nindent 10 }}
+          {{- include "card-maven.containerSecurity" . | nindent 10 }}
+{{- end }}
