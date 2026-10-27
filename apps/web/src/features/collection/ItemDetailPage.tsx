@@ -45,9 +45,9 @@ export function ItemDetailPage() {
     card.is_memorabilia && "Memorabilia",
   ].filter(Boolean);
 
-  async function handleDelete() {
-    await remove.mutateAsync(item.id);
-    void navigate("/collection", { replace: true });
+  function handleDelete() {
+    // Failures surface through `remove.isError` below, not as a thrown error.
+    remove.mutate(item.id, { onSuccess: () => void navigate("/collection", { replace: true }) });
   }
 
   return (
@@ -97,7 +97,7 @@ export function ItemDetailPage() {
             <button
               type="button"
               className="button button--danger"
-              onClick={() => void handleDelete()}
+              onClick={handleDelete}
               disabled={remove.isPending}
             >
               {remove.isPending ? "Deleting…" : "Delete card"}
