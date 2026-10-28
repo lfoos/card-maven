@@ -1,0 +1,25 @@
+version: 2
+
+sources:
+  - name: app
+    description: Application tables written by the Card Maven API and workers (Alembic-managed).
+    schema: "{{ env_var('DBT_APP_SCHEMA', 'public') }}"
+    # `listing` is intentionally not declared: display-only data (eBay asks)
+    # must never reach analytics (ADR-0009).
+    tables:
+      - name: market_source
+        columns:
+          - name: code
+            data_tests: [unique, not_null]
+          - name: license
+            data_tests:
+              - accepted_values:
+                  arguments: { values: ["analytics", "display_only"] }
+      - name: sale
+        columns:
+          - name: id
+            data_tests: [unique, not_null]
+      - name: card_variant
+      - name: card
+      - name: card_set
+      - name: parallel

@@ -14,4 +14,13 @@ Every Kafka message is a JSON [envelope](envelope.schema.json) carrying a typed 
 
 ## Payload schemas
 
-Each event type gets a `<type>.schema.json` file here when its producer is built. The first ones arrive in Phase 2 (`market.sync.requested.v1`, `market.sales.ingested.v1`).
+Each event type gets a `<type>.schema.json` file here, describing its `data`. Contract tests check that real producer output validates.
+
+| Type | Producer | Consumer | Data |
+|---|---|---|---|
+| `market.sync.requested.v1` | API (Get comps), `request-market-sync` (nightly) | `market-worker` | [schema](market.sync.requested.v1.schema.json) |
+| `market.sales.ingested.v1` | `market-worker` | none yet (Phase 5 trends) | [schema](market.sales.ingested.v1.schema.json) |
+
+## Dead-letter topics
+
+A consumer that can't process a message (undecodable, invalid, or still failing after 3 attempts) publishes it unchanged to `<topic>.dlq`, with headers `dlq_reason` and `dlq_source_topic`, then moves on. Replay is manual: fix the cause, then re-publish from the DLQ.

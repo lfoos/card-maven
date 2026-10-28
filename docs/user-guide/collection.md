@@ -24,7 +24,7 @@ Go to **Collection → Add card** and fill in two sections.
 
 The collection page shows cards as a **Grid** (with front photos) or a **Table** (with prices). Search matches player, card name, set, team, parallel, and card number. Filter by sport, year, or condition, and sort by recently added, year, or name. Filters are part of the page address, so you can bookmark a view. **Load more** fetches the next page.
 
-**Est. value** shows "—" for now. Market-based estimates arrive with comps in the next release.
+**Est. value** is the card's market estimate (see [Comps and estimated values](market.md)). It shows "—" until there are recent sales at your card's grade.
 
 ## Photos
 

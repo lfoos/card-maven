@@ -1,6 +1,126 @@
 {
   "components": {
     "schemas": {
+      "AskOut": {
+        "description": "A current listing: an asking price, not a sale. Never used for estimates.",
+        "properties": {
+          "bid_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bid Count"
+          },
+          "buying_option": {
+            "title": "Buying Option",
+            "type": "string"
+          },
+          "condition": {
+            "title": "Condition",
+            "type": "string"
+          },
+          "ends_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ends At"
+          },
+          "grade": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grade"
+          },
+          "grader": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grader"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "image_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Url"
+          },
+          "observed_at": {
+            "description": "When this price was last seen",
+            "format": "date-time",
+            "title": "Observed At",
+            "type": "string"
+          },
+          "price": {
+            "$ref": "#/components/schemas/MoneyOut"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Listing link (an affiliate link when configured)",
+            "title": "Url"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "price",
+          "buying_option",
+          "bid_count",
+          "condition",
+          "grader",
+          "grade",
+          "url",
+          "image_url",
+          "source",
+          "observed_at",
+          "ends_at"
+        ],
+        "title": "AskOut",
+        "type": "object"
+      },
       "CardIdentity": {
         "additionalProperties": false,
         "description": "What a card *is*, as a collector would describe it.",
@@ -216,6 +336,111 @@
         "title": "CardOut",
         "type": "object"
       },
+      "CompOut": {
+        "description": "A completed sale of this card (analytics-licensed sources only).",
+        "properties": {
+          "condition": {
+            "title": "Condition",
+            "type": "string"
+          },
+          "grade": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grade"
+          },
+          "grader": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grader"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "match": {
+            "description": "`exact`: same grader and grade (or both raw). `nearest`: closest grade.",
+            "enum": [
+              "exact",
+              "nearest"
+            ],
+            "title": "Match",
+            "type": "string"
+          },
+          "mine": {
+            "description": "A manual sale you entered (you can delete it)",
+            "title": "Mine",
+            "type": "boolean"
+          },
+          "price": {
+            "$ref": "#/components/schemas/MoneyOut"
+          },
+          "sale_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sale Type"
+          },
+          "sold_at": {
+            "format": "date-time",
+            "title": "Sold At",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Link to the sale, when the source has one (http/https)",
+            "title": "Url"
+          }
+        },
+        "required": [
+          "id",
+          "sold_at",
+          "price",
+          "condition",
+          "grader",
+          "grade",
+          "title",
+          "url",
+          "source",
+          "sale_type",
+          "match",
+          "mine"
+        ],
+        "title": "CompOut",
+        "type": "object"
+      },
       "Condition": {
         "enum": [
           "raw",
@@ -223,6 +448,42 @@
         ],
         "title": "Condition",
         "type": "string"
+      },
+      "EstimateOut": {
+        "properties": {
+          "grade": {
+            "description": "The grade compared, e.g. \"PSA 10\" or \"Raw\"",
+            "title": "Grade",
+            "type": "string"
+          },
+          "latest_sale_at": {
+            "format": "date-time",
+            "title": "Latest Sale At",
+            "type": "string"
+          },
+          "sample_size": {
+            "description": "Sales in the median (at most 10)",
+            "title": "Sample Size",
+            "type": "integer"
+          },
+          "value": {
+            "$ref": "#/components/schemas/MoneyOut"
+          },
+          "window_days": {
+            "description": "Only sales within this many days count",
+            "title": "Window Days",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "value",
+          "sample_size",
+          "grade",
+          "window_days",
+          "latest_sale_at"
+        ],
+        "title": "EstimateOut",
+        "type": "object"
       },
       "FieldError": {
         "properties": {
@@ -447,6 +708,66 @@
         "title": "ItemImagesOut",
         "type": "object"
       },
+      "ItemMarketOut": {
+        "properties": {
+          "asks": {
+            "description": "Up to 5 current listings, cheapest first",
+            "items": {
+              "$ref": "#/components/schemas/AskOut"
+            },
+            "title": "Asks",
+            "type": "array"
+          },
+          "comps": {
+            "description": "Up to 5: exact grade first, then nearest, newest",
+            "items": {
+              "$ref": "#/components/schemas/CompOut"
+            },
+            "title": "Comps",
+            "type": "array"
+          },
+          "estimate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EstimateOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "grade": {
+            "description": "How the item is compared, e.g. \"PSA 10\" or \"Raw\"",
+            "title": "Grade",
+            "type": "string"
+          },
+          "item_id": {
+            "format": "uuid",
+            "title": "Item Id",
+            "type": "string"
+          },
+          "last_sync": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SyncJobOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "item_id",
+          "grade",
+          "estimate",
+          "comps",
+          "asks",
+          "last_sync"
+        ],
+        "title": "ItemMarketOut",
+        "type": "object"
+      },
       "ItemOut": {
         "properties": {
           "acquired_on": {
@@ -484,6 +805,17 @@
             "title": "Created At",
             "type": "string"
           },
+          "estimate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EstimateOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The estimate and what it's based on"
+          },
           "estimated_value": {
             "anyOf": [
               {
@@ -493,7 +825,7 @@
                 "type": "null"
               }
             ],
-            "description": "Market-based estimate. Null until market data is available (Phase 2)."
+            "description": "Median of recent sales at this card's exact grade; null without any. Same as `estimate.value`."
           },
           "grade": {
             "anyOf": [
@@ -576,6 +908,7 @@
           "acquired_on",
           "notes",
           "estimated_value",
+          "estimate",
           "images",
           "created_at",
           "updated_at"
@@ -610,6 +943,108 @@
           "next_cursor"
         ],
         "title": "ItemPageOut",
+        "type": "object"
+      },
+      "ManualSale": {
+        "additionalProperties": false,
+        "properties": {
+          "condition": {
+            "$ref": "#/components/schemas/Condition",
+            "default": "raw"
+          },
+          "grade": {
+            "anyOf": [
+              {
+                "maximum": 10.0,
+                "minimum": 1.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Grade"
+          },
+          "grader": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Grader"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "price": {
+            "$ref": "#/components/schemas/MoneyInput"
+          },
+          "sale_type": {
+            "$ref": "#/components/schemas/SaleType",
+            "default": "other"
+          },
+          "sold_on": {
+            "format": "date",
+            "title": "Sold On",
+            "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Title"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "format": "uri",
+                "maxLength": 2083,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Url"
+          }
+        },
+        "required": [
+          "sold_on",
+          "price"
+        ],
+        "title": "ManualSale",
+        "type": "object"
+      },
+      "ManualSales": {
+        "additionalProperties": false,
+        "properties": {
+          "sales": {
+            "items": {
+              "$ref": "#/components/schemas/ManualSale"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Sales",
+            "type": "array"
+          }
+        },
+        "required": [
+          "sales"
+        ],
+        "title": "ManualSales",
         "type": "object"
       },
       "MeOut": {
@@ -1046,6 +1481,33 @@
         "title": "ProblemOut",
         "type": "object"
       },
+      "SaleType": {
+        "enum": [
+          "auction",
+          "fixed_price",
+          "best_offer",
+          "other"
+        ],
+        "title": "SaleType",
+        "type": "string"
+      },
+      "SalesAddedOut": {
+        "properties": {
+          "added": {
+            "title": "Added",
+            "type": "integer"
+          },
+          "market": {
+            "$ref": "#/components/schemas/ItemMarketOut"
+          }
+        },
+        "required": [
+          "added",
+          "market"
+        ],
+        "title": "SalesAddedOut",
+        "type": "object"
+      },
       "SetList": {
         "properties": {
           "items": {
@@ -1136,6 +1598,75 @@
           "sha256"
         ],
         "title": "StartUpload",
+        "type": "object"
+      },
+      "SyncJobOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "created_at",
+          "started_at",
+          "finished_at",
+          "error"
+        ],
+        "title": "SyncJobOut",
         "type": "object"
       },
       "UploadStartedOut": {
@@ -2017,6 +2548,251 @@
         ]
       }
     },
+    "/api/v1/collection/items/{item_id}/comps": {
+      "get": {
+        "description": "Recent sales of this card (exact grade first), its estimated value, current listings (asking prices, never used for the estimate), and the latest market sync.",
+        "operationId": "collection_get_comps_items__uuid_item_id__comps_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemMarketOut"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemOut"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get comps",
+        "tags": [
+          "collection"
+        ]
+      },
+      "post": {
+        "description": "Record 1-200 sales of this card (e.g. from a CSV). They count toward your comps and estimates only; other collectors never see them.",
+        "operationId": "collection_add_sales_items__uuid_item_id__comps_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ManualSales"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SalesAddedOut"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemOut"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Add sales you know of",
+        "tags": [
+          "collection"
+        ]
+      }
+    },
+    "/api/v1/collection/items/{item_id}/comps/refresh": {
+      "post": {
+        "description": "Queues a market sync for this card and returns the job; poll `/market/sync-jobs/{job_id}`, then reload comps. A sync already queued or running, or one that finished in the last 15 minutes, is returned instead of starting another.",
+        "operationId": "collection_refresh_comps_items__uuid_item_id__comps_refresh_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncJobOut"
+                }
+              }
+            },
+            "description": "Accepted"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemOut"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Refresh comps from market sources",
+        "tags": [
+          "collection"
+        ]
+      }
+    },
     "/api/v1/collection/items/{item_id}/images": {
       "post": {
         "description": "Returns a presigned POST. Upload the file directly to storage, then call `.../images/{image_id}/complete`. The policy pins the key, content type, and size.",
@@ -2279,6 +3055,156 @@
         ]
       }
     },
+    "/api/v1/market/sales/{sale_id}": {
+      "delete": {
+        "operationId": "market_delete_sale_sales__uuid_sale_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sale_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Sale Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemOut"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete a sale you entered",
+        "tags": [
+          "market"
+        ]
+      }
+    },
+    "/api/v1/market/sync-jobs/{job_id}": {
+      "get": {
+        "description": "Visible to collectors who hold the card being synced.",
+        "operationId": "market_get_sync_job_sync_jobs__uuid_job_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncJobOut"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemOut"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Check a market sync",
+        "tags": [
+          "market"
+        ]
+      }
+    },
     "/api/v1/me": {
       "get": {
         "operationId": "identity_me_me_get",
@@ -2348,6 +3274,10 @@
     {
       "description": "A collector's cards and their photos",
       "name": "collection"
+    },
+    {
+      "description": "Sales you entered, and market sync jobs",
+      "name": "market"
     }
   ]
 }

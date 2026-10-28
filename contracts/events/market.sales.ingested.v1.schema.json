@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cardmaven.app/schemas/events/market.sales.ingested.v1.json",
+  "title": "market.sales.ingested.v1 data",
+  "description": "A market sync job finished. Subject: <target_type>:<target_id>. Downstream consumers (trends, Phase 5) re-read the database; the event carries counts only, never market data.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["job_id", "status", "stats"],
+  "properties": {
+    "job_id": { "type": "string", "format": "uuid" },
+    "status": { "enum": ["succeeded", "failed"] },
+    "stats": {
+      "type": "object",
+      "description": "Per market source code: outcome counts, or the error that source returned.",
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": ["fetched"],
+            "additionalProperties": { "type": "integer", "minimum": 0 },
+            "properties": {
+              "fetched": { "type": "integer", "minimum": 0 },
+              "stored": { "type": "integer", "minimum": 0 },
+              "stored_unmatched": { "type": "integer", "minimum": 0 },
+              "unmatched": { "type": "integer", "minimum": 0 },
+              "disqualified": { "type": "integer", "minimum": 0 },
+              "rejected_license": { "type": "integer", "minimum": 0 }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["error", "transient"],
+            "properties": { "error": { "type": "string" }, "transient": { "type": "boolean" } }
+          }
+        ]
+      }
+    }
+  }
+}

@@ -11,3 +11,4 @@ One folder per feature-sized change: `NNNN-short-slug/`. Each holds the full out
 |---|---|---|
 | [0001](0001-foundation/plan.md) | Foundation | 0 |
 | [0002](0002-collection/plan.md) | Identity and collection | 1 |
+| [0003](0003-market-data/plan.md) | Market data pipeline | 2 |

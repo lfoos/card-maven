@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -92,6 +93,14 @@ class ItemImagesOut(BaseModel):
     back: ImageOut | None = None
 
 
+class EstimateOut(BaseModel):
+    value: MoneyOut
+    sample_size: int = Field(description="Sales in the median (at most 10)")
+    grade: str = Field(description='The grade compared, e.g. "PSA 10" or "Raw"')
+    window_days: int = Field(description="Only sales within this many days count")
+    latest_sale_at: datetime
+
+
 class ItemOut(ApiModel):
     id: uuid.UUID
     card: CardOut
@@ -104,8 +113,10 @@ class ItemOut(ApiModel):
     acquired_on: date | None
     notes: str | None
     estimated_value: MoneyOut | None = Field(
-        description="Market-based estimate. Null until market data is available (Phase 2)."
+        description="Median of recent sales at this card's exact grade; null without any. "
+        "Same as `estimate.value`."
     )
+    estimate: EstimateOut | None = Field(description="The estimate and what it's based on")
     images: ItemImagesOut
     created_at: datetime
     updated_at: datetime
@@ -141,3 +152,63 @@ class UploadStartedOut(BaseModel):
     image_id: uuid.UUID
     upload: PresignedPostOut
     expires_in: int = Field(description="Seconds the upload is valid")
+
+
+class CompOut(BaseModel):
+    """A completed sale of this card (analytics-licensed sources only)."""
+
+    id: uuid.UUID
+    sold_at: datetime
+    price: MoneyOut
+    condition: str
+    grader: str | None
+    grade: str | None
+    title: str
+    url: str | None = Field(description="Link to the sale, when the source has one (http/https)")
+    source: str
+    sale_type: str | None
+    match: Literal["exact", "nearest"] = Field(
+        description="`exact`: same grader and grade (or both raw). `nearest`: closest grade."
+    )
+    mine: bool = Field(description="A manual sale you entered (you can delete it)")
+
+
+class AskOut(BaseModel):
+    """A current listing: an asking price, not a sale. Never used for estimates."""
+
+    id: uuid.UUID
+    title: str
+    price: MoneyOut
+    buying_option: str
+    bid_count: int | None
+    condition: str
+    grader: str | None
+    grade: str | None
+    url: str | None = Field(description="Listing link (an affiliate link when configured)")
+    image_url: str | None
+    source: str
+    observed_at: datetime = Field(description="When this price was last seen")
+    ends_at: datetime | None
+
+
+class SyncJobOut(BaseModel):
+    id: uuid.UUID
+    status: Literal["queued", "running", "succeeded", "failed"]
+    created_at: datetime
+    started_at: datetime | None
+    finished_at: datetime | None
+    error: str | None
+
+
+class ItemMarketOut(BaseModel):
+    item_id: uuid.UUID
+    grade: str = Field(description='How the item is compared, e.g. "PSA 10" or "Raw"')
+    estimate: EstimateOut | None
+    comps: list[CompOut] = Field(description="Up to 5: exact grade first, then nearest, newest")
+    asks: list[AskOut] = Field(description="Up to 5 current listings, cheapest first")
+    last_sync: SyncJobOut | None
+
+
+class SalesAddedOut(BaseModel):
+    added: int
+    market: ItemMarketOut

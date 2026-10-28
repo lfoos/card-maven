@@ -159,6 +159,7 @@ class TestInitStorage:
         self, env: None, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setenv("CARD_MAVEN_ENVIRONMENT", "dev")
+        monkeypatch.setenv("CARD_MAVEN_MARKET_SOURCES", '["ebay_browse"]')
         monkeypatch.setenv("CARD_MAVEN_DATABASE_URL", "postgresql+psycopg://a:b@db:5432/x")
         monkeypatch.setenv("CARD_MAVEN_OIDC_ISSUER", "https://idp")
         monkeypatch.setenv("CARD_MAVEN_OIDC_JWKS_URL", "https://idp/jwks")
@@ -173,3 +174,12 @@ class TestInitStorage:
         result = CliRunner().invoke(cli, ["init-storage"])
         assert result.exit_code == 1
         assert "could not reach object storage" in result.output
+
+
+def test_invalid_settings_fail_with_a_readable_message(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("CARD_MAVEN_ENVIRONMENT", "dev")
+    monkeypatch.setenv("CARD_MAVEN_MARKET_SOURCES", '["fixture"]')
+    result = CliRunner().invoke(cli, ["check-config"])
+    assert result.exit_code == 1
+    assert "invalid settings:" in result.output
+    assert "Traceback" not in result.output

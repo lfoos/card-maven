@@ -54,7 +54,7 @@ storage: ## Create the local media bucket and its CORS rules
 bootstrap: doctor up migrate seed storage ## Start the stack, migrate, seed, and set up storage (first run)
 
 # ---- Run ---------------------------------------------------------------------
-.PHONY: api web relay
+.PHONY: api web relay market-worker market-sync maintenance dbt
 api: ## Run the API with reload on http://localhost:8000
 	CARD_MAVEN_LOG_JSON=false uv run flask --app card_maven_api.wsgi:app run --port 8000 --reload
 
@@ -63,6 +63,19 @@ web: ## Run the web app on http://localhost:5173
 
 relay: ## Run the outbox relay
 	CARD_MAVEN_LOG_JSON=false uv run card-maven outbox-relay
+
+market-worker: ## Run the market sync worker (consumes market.sync.requested)
+	CARD_MAVEN_LOG_JSON=false uv run card-maven market-worker
+
+market-sync: ## Queue a market sync for every tracked set (what the nightly job does)
+	CARD_MAVEN_LOG_JSON=false uv run card-maven request-market-sync
+
+dbt: ## Build and test the analytics marts (dbt) against the local database
+	cd analytics/dbt && uv sync --frozen -q && uv run --frozen dbt build --profiles-dir .
+
+maintenance: ## Purge stale display-only listings and abandoned uploads
+	CARD_MAVEN_LOG_JSON=false uv run card-maven purge-market-data
+	CARD_MAVEN_LOG_JSON=false uv run card-maven sweep-uploads
 
 # ---- Quality -----------------------------------------------------------------
 .PHONY: lint format typecheck test test-python test-web check-config openapi check

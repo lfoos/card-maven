@@ -19,7 +19,7 @@ from alembic.config import Config
 from sqlalchemy import Engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
-from card_maven.catalog.reference_data import load_reference_data, seed_reference_data
+from card_maven.reference_data import load_reference_data, seed_reference_data
 from card_maven.shared.db import make_engine
 
 REPO_ROOT = Path(__file__).resolve().parent

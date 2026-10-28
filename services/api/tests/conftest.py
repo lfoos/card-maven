@@ -12,7 +12,7 @@ from flask import Flask
 from flask.testing import FlaskClient
 from sqlalchemy.orm import sessionmaker
 
-from card_maven.catalog.reference_data import load_reference_data, seed_reference_data
+from card_maven.reference_data import load_reference_data, seed_reference_data
 from card_maven.shared.config import Settings
 from card_maven.shared.db import make_engine, make_session_factory, session_scope
 from card_maven.shared.storage.memory import InMemoryObjectStore

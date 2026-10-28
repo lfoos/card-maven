@@ -12,3 +12,12 @@ brands:
   - { slug: topps,      name: Topps }
   - { slug: panini,     name: Panini }
   - { slug: upper-deck, name: Upper Deck }
+
+# Market data sources and what their terms allow (docs/adr/0009-market-data-licensing.md).
+#   analytics     may feed comps, estimated values, dbt marts, and trends
+#   display_only  shown as current asks only; deleted when not re-seen within max_age_hours
+# Change a source to analytics only with written permission from its owner.
+market_sources:
+  - { code: manual,      name: Collector-entered sales, license: analytics }
+  - { code: fixture,     name: Sample data (dev only),  license: analytics }
+  - { code: ebay_browse, name: eBay listings,           license: display_only, max_age_hours: 6 }

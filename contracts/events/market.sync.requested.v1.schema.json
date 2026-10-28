@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cardmaven.app/schemas/events/market.sync.requested.v1.json",
+  "title": "market.sync.requested.v1 data",
+  "description": "A market sync job was queued. Consumer: market-worker. Subject: <target_type>:<target_id>.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["job_id", "target_type", "target_id"],
+  "properties": {
+    "job_id": { "type": "string", "format": "uuid", "description": "market_sync_job.id; the job row holds status and results." },
+    "target_type": { "enum": ["variant", "tracked_set"] },
+    "target_id": { "type": "string", "format": "uuid", "description": "card_variant.id or tracked_set.id." }
+  }
+}

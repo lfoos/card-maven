@@ -3,6 +3,7 @@ image:
   registry: ""          # e.g. 123456789012.dkr.ecr.us-west-2.amazonaws.com
   api: card-maven-api
   workers: card-maven-workers
+  analytics: card-maven-analytics   # dbt (analytics/dbt/Dockerfile)
   tag: "0.1.0"
   pullPolicy: IfNotPresent
 
@@ -15,9 +16,14 @@ config:
   oidcJwksUrl: ""
   kafkaBootstrapServers: ""
   corsOrigins: '["http://localhost:5173"]'
+  # Never "fixture" outside local/test (the settings guard refuses it).
+  marketSources: ["ebay_browse"]
+  ebayEnvironment: sandbox   # switch to production with production keys
+  ebayCampaignId: ""         # eBay Partner Network campaign, for affiliate links
 
 # Secrets are never stored in values. Point at an existing Secret (created by
-# External Secrets / Secrets Manager in AWS) with a `database-url` key.
+# External Secrets / Secrets Manager in AWS) with a `database-url` key and,
+# optionally, `ebay-client-id` and `ebay-client-secret`.
 secrets:
   existingSecret: card-maven-secrets
 
@@ -45,3 +51,36 @@ migrations:
 
 trackedSets:
   sync: true            # post-install/post-upgrade hook: seed + sync-tracked-sets
+
+marketWorker:
+  enabled: true
+  replicas: 1
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 512Mi }
+
+# Scheduled jobs. Each runs card-maven commands in the workers image.
+cronJobs:
+  timeZone: America/Denver
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { memory: 256Mi }
+  jobs:
+    market-sync:            # Feature 6: nightly pull for every tracked set
+      enabled: true
+      schedule: "30 2 * * *"
+      command: card-maven request-market-sync
+    maintenance:            # eBay license: drop listings older than 6h; abandoned uploads
+      enabled: true
+      schedule: "15 * * * *"
+      command: card-maven purge-market-data && card-maven sweep-uploads
+    analytics:              # dbt build: shared-market marts, after the nightly sync
+      enabled: true
+      schedule: "30 4 * * *"
+      image: analytics
+      args: ["build"]
+      writableTmp: true
+      activeDeadlineSeconds: 3600
+      resources:
+        requests: { cpu: 100m, memory: 256Mi }
+        limits: { memory: 1Gi }

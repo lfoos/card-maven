@@ -1,0 +1,6 @@
+{{- range $name, $job := .Values.cronJobs.jobs }}
+{{- if $job.enabled }}
+---
+{{ include "card-maven.cronjob" (list $ $name $job) }}
+{{- end }}
+{{- end }}

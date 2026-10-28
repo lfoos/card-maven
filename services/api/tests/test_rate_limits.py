@@ -101,3 +101,20 @@ def test_route_specific_limit_and_reset(limited_app: Flask) -> None:
 def test_write_routes_carry_their_own_limit(limited_app: Flask) -> None:
     view = limited_app.view_functions["collection.create_item"]
     assert view.__wrapped__ is not None  # wrapped by the limiter
+
+
+def test_comps_refresh_has_its_own_tighter_limit(
+    settings: Settings, verifier: TokenVerifier, unreachable_session_factory: object
+) -> None:
+    app = create_app(
+        settings.model_copy(
+            update={"rate_limits_enabled": True, "rate_limit_default": "100/minute"}
+        ),
+        session_factory=unreachable_session_factory,  # type: ignore[arg-type]
+        token_verifier=verifier,
+        object_store=InMemoryObjectStore(),
+    )
+    client = app.test_client()
+    url = "/api/v1/collection/items/00000000-0000-0000-0000-000000000001/comps/refresh"
+    statuses = [client.post(url).status_code for _ in range(11)]
+    assert statuses == [401] * 10 + [429]

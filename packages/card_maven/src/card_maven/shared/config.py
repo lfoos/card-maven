@@ -54,6 +54,16 @@ class Settings(BaseSettings):
     # X-Forwarded-* hops to trust (1 behind an ALB). 0 trusts none.
     trusted_proxy_count: int = Field(default=0, ge=0, le=5)
 
+    # Market data. Sources are enabled here; their licenses live in reference data.
+    market_sources: list[str] = Field(default_factory=lambda: ["fixture", "ebay_browse"])
+    market_fixtures_path: Path = Path("config/market_fixtures.yaml")
+    ebay_environment: Literal["sandbox", "production"] = "sandbox"
+    ebay_client_id: SecretStr | None = None
+    ebay_client_secret: SecretStr | None = None
+    ebay_campaign_id: str | None = None  # eBay Partner Network, for affiliate links
+    ebay_marketplace_id: str = "EBAY_US"
+    ebay_category_id: str = "261328"  # Sports Trading Card Singles
+
     tracked_sets_path: Path = Path("config/tracked_sets.yaml")
     reference_data_path: Path = Path("config/reference_data.yaml")
 
@@ -65,6 +75,9 @@ class Settings(BaseSettings):
         "s3_public_endpoint_url",
         "s3_access_key_id",
         "s3_secret_access_key",
+        "ebay_client_id",
+        "ebay_client_secret",
+        "ebay_campaign_id",
         mode="before",
     )
     @classmethod
@@ -83,6 +96,10 @@ class Settings(BaseSettings):
             for name in ("oidc_issuer", "oidc_jwks_url"):
                 if not getattr(self, name).startswith("https://"):
                     raise ValueError(f"{name} must use https outside local/test")
+            if "fixture" in self.market_sources:
+                raise ValueError(
+                    "the fixture market source is sample data; disable it outside local/test"
+                )
             key_id = self.s3_access_key_id
             if self.s3_endpoint_url == _LOCAL_S3_ENDPOINT or (
                 key_id is not None and key_id.get_secret_value() == _LOCAL_S3_KEY_ID
@@ -92,6 +109,10 @@ class Settings(BaseSettings):
                     "unset so the IAM role is used"
                 )
         return self
+
+    @property
+    def ebay_configured(self) -> bool:
+        return self.ebay_client_id is not None and self.ebay_client_secret is not None
 
     @property
     def is_deployed(self) -> bool:

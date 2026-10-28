@@ -1,0 +1,25 @@
+version: 2
+
+models:
+  - name: int_sales_graded
+    description: Eligible sales with a condition bucket ("Raw", "PSA 10", ...).
+    columns:
+      - name: sale_id
+        data_tests: [unique, not_null]
+      - name: condition_bucket
+        data_tests: [not_null]
+
+unit_tests:
+  - name: condition_buckets_drop_trailing_zeros
+    model: int_sales_graded
+    given:
+      - input: ref('stg_market__sales')
+        rows:
+          - { sale_id: "00000000-0000-0000-0000-000000000001", condition: raw, grader: null, grade: null }
+          - { sale_id: "00000000-0000-0000-0000-000000000002", condition: graded, grader: PSA, grade: 10.0 }
+          - { sale_id: "00000000-0000-0000-0000-000000000003", condition: graded, grader: BGS, grade: 9.5 }
+    expect:
+      rows:
+        - { sale_id: "00000000-0000-0000-0000-000000000001", condition_bucket: Raw }
+        - { sale_id: "00000000-0000-0000-0000-000000000002", condition_bucket: PSA 10 }
+        - { sale_id: "00000000-0000-0000-0000-000000000003", condition_bucket: BGS 9.5 }

@@ -12,3 +12,6 @@ data:
   CARD_MAVEN_OIDC_JWKS_URL: {{ required "config.oidcJwksUrl is required" .Values.config.oidcJwksUrl | quote }}
   CARD_MAVEN_KAFKA_BOOTSTRAP_SERVERS: {{ required "config.kafkaBootstrapServers is required" .Values.config.kafkaBootstrapServers | quote }}
   CARD_MAVEN_CORS_ORIGINS: {{ .Values.config.corsOrigins | quote }}
+  CARD_MAVEN_MARKET_SOURCES: {{ .Values.config.marketSources | toJson | quote }}
+  CARD_MAVEN_EBAY_ENVIRONMENT: {{ .Values.config.ebayEnvironment | quote }}
+  CARD_MAVEN_EBAY_CAMPAIGN_ID: {{ .Values.config.ebayCampaignId | quote }}

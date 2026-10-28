@@ -1,15 +1,21 @@
-"""Reference data (sports, brands) from ``config/reference_data.yaml``. Idempotent."""
+"""Reference data from ``config/reference_data.yaml``: sports, brands, and market sources.
+
+Spans bounded contexts (like ``card_maven.models``), so it lives at the package root.
+Seeding is idempotent.
+"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 from sqlalchemy.orm import Session
 
 from card_maven.catalog.models import Brand, Sport
+from card_maven.market.models import MarketSource
 from card_maven.shared.errors import InvalidInputError
 
 
@@ -25,10 +31,37 @@ class BrandEntry(BaseModel):
     name: str = Field(min_length=1, max_length=128)
 
 
+class MarketSourceEntry(BaseModel):
+    """A market data source and the license its data carries (ADR-0009)."""
+
+    model_config = ConfigDict(extra="forbid")
+    code: str = Field(pattern=r"^[a-z][a-z0-9_]*$", max_length=32)
+    name: str = Field(min_length=1, max_length=100)
+    license: Literal["analytics", "display_only"]
+    max_age_hours: int | None = Field(default=None, ge=1)
+    enabled: bool = True
+
+    @model_validator(mode="after")
+    def _display_only_expires(self) -> MarketSourceEntry:
+        if self.license == "display_only" and self.max_age_hours is None:
+            raise ValueError(f"{self.code}: display_only sources need max_age_hours")
+        return self
+
+
 class ReferenceData(BaseModel):
     model_config = ConfigDict(extra="forbid")
     sports: list[SportEntry]
     brands: list[BrandEntry]
+    market_sources: list[MarketSourceEntry] = Field(default_factory=list)
+
+    @field_validator("market_sources")
+    @classmethod
+    def _unique_sources(cls, entries: list[MarketSourceEntry]) -> list[MarketSourceEntry]:
+        codes = [e.code for e in entries]
+        duplicates = sorted({c for c in codes if codes.count(c) > 1})
+        if duplicates:
+            raise ValueError(f"duplicate keys: {duplicates}")
+        return entries
 
     @field_validator("sports", "brands")
     @classmethod
@@ -56,6 +89,7 @@ def load_reference_data(path: Path) -> ReferenceData:
 class SeedResult:
     sports: int
     brands: int
+    market_sources: int = 0
 
 
 def seed_reference_data(session: Session, data: ReferenceData) -> SeedResult:
@@ -64,5 +98,18 @@ def seed_reference_data(session: Session, data: ReferenceData) -> SeedResult:
         session.merge(Sport(code=sport.code, name=sport.name))
     for brand in data.brands:
         session.merge(Brand(slug=brand.slug, name=brand.name))
+    for source in data.market_sources:
+        # Licenses are authoritative in config: re-seeding updates them.
+        session.merge(
+            MarketSource(
+                code=source.code,
+                name=source.name,
+                license=source.license,
+                max_age_hours=source.max_age_hours,
+                enabled=source.enabled,
+            )
+        )
     session.flush()
-    return SeedResult(sports=len(data.sports), brands=len(data.brands))
+    return SeedResult(
+        sports=len(data.sports), brands=len(data.brands), market_sources=len(data.market_sources)
+    )

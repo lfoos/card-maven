@@ -1,0 +1,26 @@
+name: card_maven
+version: "0.1.0"
+config-version: 2
+profile: card_maven
+require-dbt-version: [">=1.10.0", "<2.0.0"]
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+clean-targets: ["target", "logs"]
+
+vars:
+  # Marts are computed "as of" this date. Null means today (UTC); tests pin it.
+  as_of_date: null
+  value_window_days: 90
+
+models:
+  card_maven:
+    +on_schema_change: fail
+    staging:
+      +materialized: view
+    intermediate:
+      +materialized: view
+    marts:
+      +materialized: table
+      +contract: { enforced: true }

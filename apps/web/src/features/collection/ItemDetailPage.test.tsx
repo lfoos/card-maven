@@ -2,7 +2,7 @@ import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { ApiError } from "../../api/errors";
-import { makeItem } from "../../test/fixtures";
+import { makeItem, makeMarket } from "../../test/fixtures";
 import { fakeClient, renderWithApi } from "../../test/renderWithApi";
 import { ItemDetailPage } from "./ItemDetailPage";
 
@@ -17,13 +17,14 @@ describe("ItemDetailPage", () => {
       { condition: "graded", grader: "PSA", grade: "10.0", cert_number: "777", notes: "case hit" },
       { is_rookie: true },
     );
-    const { client } = fakeClient(() => item);
+    const { client } = fakeClient((path) => (path.endsWith("/comps") ? makeMarket() : item));
     renderWithApi(client, { routes, path: "/collection/item-1" });
     expect(await screen.findByRole("heading", { name: "JJ Wetherholt" })).toBeInTheDocument();
     expect(screen.getByText("PSA 10 · cert 777")).toBeInTheDocument();
     expect(screen.getByText("Gold Refractor 12/50")).toBeInTheDocument();
     expect(screen.getByText("case hit")).toBeInTheDocument();
     expect(screen.getByText("Rookie")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Market" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Edit" })).toHaveAttribute(
       "href",
       "/collection/item-1/edit",
@@ -31,8 +32,12 @@ describe("ItemDetailPage", () => {
   });
 
   it("confirms before deleting, then returns to the list", async () => {
-    const { client, request } = fakeClient((_path, options) =>
-      options?.method === "DELETE" ? undefined : makeItem(),
+    const { client, request } = fakeClient((path, options) =>
+      options?.method === "DELETE"
+        ? undefined
+        : path.endsWith("/comps")
+          ? makeMarket()
+          : makeItem(),
     );
     renderWithApi(client, { routes, path: "/collection/item-1" });
     await userEvent.click(await screen.findByRole("button", { name: "Delete" }));
@@ -46,10 +51,10 @@ describe("ItemDetailPage", () => {
   });
 
   it("reports a failed delete", async () => {
-    const { client } = fakeClient((_path, options) => {
+    const { client } = fakeClient((path, options) => {
       if (options?.method === "DELETE")
         throw new ApiError(503, "dependency_unavailable", "Dependency unavailable");
-      return makeItem();
+      return path.endsWith("/comps") ? makeMarket() : makeItem();
     });
     renderWithApi(client, { routes, path: "/collection/item-1" });
     await userEvent.click(await screen.findByRole("button", { name: "Delete" }));

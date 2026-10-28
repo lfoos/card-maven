@@ -9,6 +9,8 @@ package = false
 
 [tool.uv.workspace]
 members = ["packages/card_maven", "services/api", "services/workers"]
+# The dbt project has its own lockfile (dbt pins its own dependency tree).
+exclude = ["analytics/dbt"]
 
 [tool.uv.sources]
 card-maven-core = { workspace = true }
@@ -30,6 +32,7 @@ dev = [
   "pre-commit>=4.0",
   "moto[s3]>=5.0",
   "boto3-stubs[s3]>=1.35",
+  "respx>=0.22",
 ]
 
 [tool.ruff]
@@ -42,7 +45,7 @@ select = ["E", "F", "W", "I", "B", "UP", "N", "S", "SIM", "RUF", "PT", "DTZ", "T
 ignore = ["S101"]  # assert is how pytest works
 
 [tool.ruff.lint.per-file-ignores]
-"**/tests/**" = ["S105", "S106", "S108"]
+"**/tests/**" = ["S105", "S106", "S108", "S603"]
 "db/migrations/**" = ["N999", "E501"]
 
 [tool.ruff.lint.flake8-tidy-imports]

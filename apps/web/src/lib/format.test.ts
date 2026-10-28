@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { makeItem } from "../test/fixtures";
-import { formatGrade, formatMoney, parallelLine, setLine, sportLabel } from "./format";
+import {
+  formatGrade,
+  formatMoney,
+  parallelLine,
+  setLine,
+  sportLabel,
+  formatAge,
+  formatDate,
+  sourceLabel,
+} from "./format";
 
 describe("format", () => {
   it("money", () => {
@@ -38,5 +47,18 @@ describe("format", () => {
   it("sport labels", () => {
     expect(sportLabel("hockey")).toBe("Hockey");
     expect(sportLabel("curling")).toBe("curling");
+  });
+
+  it("sources, dates, and ages", () => {
+    expect(sourceLabel("ebay_browse")).toBe("eBay");
+    expect(sourceLabel("manual")).toBe("You");
+    expect(sourceLabel("new_source")).toBe("new_source");
+    expect(formatDate("2026-10-27T23:30:00Z")).toBe("Oct 27, 2026");
+    const now = new Date("2026-10-27T12:00:00Z");
+    expect(formatAge("2026-10-27T12:00:20Z", now)).toBe("just now");
+    expect(formatAge("2026-10-27T11:48:00Z", now)).toBe("12 min ago");
+    expect(formatAge("2026-10-27T09:00:00Z", now)).toBe("3 h ago");
+    expect(formatAge("2026-10-26T12:00:00Z", now)).toBe("1 day ago");
+    expect(formatAge("2026-10-24T12:00:00Z", now)).toBe("3 days ago");
   });
 });

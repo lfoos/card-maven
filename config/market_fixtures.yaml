@@ -1,0 +1,41 @@
+# SAMPLE DATA for local development and tests (market source `fixture`).
+# Not real sales. Refused in deployed environments.
+# `days_ago` is relative to when the sync runs, so the data always looks recent.
+# Includes noise (lots, breaks, other years, other parallels) to exercise matching.
+
+sales:
+  # 2025 Bowman Chrome — JJ Wetherholt Chrome Prospect Autographs (CPA-JW)
+  - { id: fx-001, title: "2025 Bowman Chrome JJ Wetherholt 1st Auto CPA-JW PSA 10", price: "185.00", days_ago: 2 }
+  - { id: fx-002, title: "2025 Bowman Chrome JJ Wetherholt 1st Bowman Auto CPA-JW PSA 10 Gem Mint", price: "199.99", days_ago: 6, type: fixed_price }
+  - { id: fx-003, title: "2025 Bowman Chrome JJ Wetherholt CPA-JW Auto PSA 9", price: "110.00", days_ago: 9 }
+  - { id: fx-004, title: "2025 Bowman Chrome JJ Wetherholt Auto CPA-JW 1st", price: "72.50", days_ago: 3 }
+  - { id: fx-005, title: "2025 Bowman Chrome JJ Wetherholt 1st Auto CPA-JW Raw", price: "68.00", days_ago: 12 }
+  - { id: fx-006, title: "2025 Bowman Chrome JJ Wetherholt CPA-JW Refractor Auto /499", price: "120.00", days_ago: 5 }
+  - { id: fx-007, title: "2025 Bowman Chrome JJ Wetherholt CPA-JW Gold Refractor Auto 12/50", price: "640.00", days_ago: 4 }
+  - { id: fx-008, title: "2025 Bowman Chrome JJ Wetherholt Gold Refractor Auto /50 PSA 10", price: "1150.00", days_ago: 15 }
+  - { id: fx-009, title: "2025 Bowman Chrome JJ Wetherholt CPA-JW Gold Refractor Auto /50 PSA 9", price: "780.00", days_ago: 21 }
+  - { id: fx-010, title: "2025 Bowman Chrome JJ Wetherholt Orange Refractor Auto /25", price: "1400.00", days_ago: 8 }
+  # 2025 Bowman Chrome — Roman Anthony Prospects (BCP-50)
+  - { id: fx-020, title: "2025 Bowman Chrome Roman Anthony BCP-50 Prospect", price: "9.50", days_ago: 1, type: fixed_price }
+  - { id: fx-021, title: "2025 Bowman Chrome Roman Anthony BCP-50 PSA 10", price: "48.00", days_ago: 7 }
+  - { id: fx-022, title: "2025 Bowman Chrome Roman Anthony BCP-50 Refractor /499", price: "38.00", days_ago: 10 }
+  # 2024 Topps Chrome — Paul Skenes RC (#1)
+  - { id: fx-030, title: "2024 Topps Chrome Paul Skenes #1 RC Rookie", price: "14.00", days_ago: 2, type: fixed_price }
+  - { id: fx-031, title: "2024 Topps Chrome Paul Skenes #1 RC PSA 10", price: "95.00", days_ago: 4 }
+  - { id: fx-032, title: "2024 Topps Chrome Paul Skenes #1 Rookie PSA 10 GEM MT", price: "102.50", days_ago: 11 }
+  - { id: fx-033, title: "2024 Topps Chrome Paul Skenes #1 RC PSA 9", price: "41.00", days_ago: 6 }
+  - { id: fx-034, title: "2024 Topps Chrome Paul Skenes #1 RC Refractor", price: "35.00", days_ago: 3 }
+  - { id: fx-035, title: "2024 Topps Chrome Paul Skenes #1 Gold Refractor /50 RC", price: "520.00", days_ago: 9 }
+  # 2024 Panini Prizm (basketball) — Stephon Castle RC
+  - { id: fx-040, title: "2024-25 Panini Prizm Stephon Castle #135 RC", price: "6.00", days_ago: 2, type: fixed_price }
+  - { id: fx-041, title: "2024-25 Panini Prizm Stephon Castle #135 Silver RC", price: "28.00", days_ago: 5 }
+  - { id: fx-042, title: "2024-25 Panini Prizm Stephon Castle #135 Silver RC PSA 10", price: "120.00", days_ago: 13 }
+  # 2024 Upper Deck Series 1 (hockey) — Macklin Celebrini Young Guns
+  - { id: fx-050, title: "2024-25 Upper Deck Series 1 Macklin Celebrini Young Guns #201 RC", price: "145.00", days_ago: 3 }
+  - { id: fx-051, title: "2024-25 Upper Deck Series 1 Macklin Celebrini Young Guns #201 RC PSA 10", price: "410.00", days_ago: 8 }
+  # Noise: must never match a single card
+  - { id: fx-090, title: "2025 Bowman Chrome Lot of 10 Prospects Wetherholt Anthony", price: "25.00", days_ago: 2 }
+  - { id: fx-091, title: "2025 Bowman Chrome Hobby Case Break Spot - Cardinals", price: "60.00", days_ago: 1 }
+  - { id: fx-092, title: "2024 Topps Chrome YOU PICK Base Rookies Skenes", price: "1.50", days_ago: 4, type: fixed_price }
+  - { id: fx-093, title: "2024 Topps Chrome Paul Skenes #1 RC Reprint", price: "2.00", days_ago: 5, type: fixed_price }
+  - { id: fx-094, title: "2024 Topps Chrome Paul Skenes #1 RC x3", price: "36.00", days_ago: 6 }
