@@ -95,6 +95,50 @@ export interface paths {
     patch: operations["collection_update_item_items__uuid_item_id__patch"];
     trace?: never;
   };
+  "/api/v1/collection/items/{item_id}/comps": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get comps
+     * @description Recent sales of this card (exact grade first), its estimated value, current listings (asking prices, never used for the estimate), and the latest market sync.
+     */
+    get: operations["collection_get_comps_items__uuid_item_id__comps_get"];
+    put?: never;
+    /**
+     * Add sales you know of
+     * @description Record 1-200 sales of this card (e.g. from a CSV). They count toward your comps and estimates only; other collectors never see them.
+     */
+    post: operations["collection_add_sales_items__uuid_item_id__comps_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/collection/items/{item_id}/comps/refresh": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Refresh comps from market sources
+     * @description Queues a market sync for this card and returns the job; poll `/market/sync-jobs/{job_id}`, then reload comps. A sync already queued or running, or one that finished in the last 15 minutes, is returned instead of starting another.
+     */
+    post: operations["collection_refresh_comps_items__uuid_item_id__comps_refresh_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/collection/items/{item_id}/images": {
     parameters: {
       query?: never;
@@ -152,6 +196,43 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/market/sales/{sale_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Delete a sale you entered */
+    delete: operations["market_delete_sale_sales__uuid_sale_id__delete"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/market/sync-jobs/{job_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Check a market sync
+     * @description Visible to collectors who hold the card being synced.
+     */
+    get: operations["market_get_sync_job_sync_jobs__uuid_job_id__get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/me": {
     parameters: {
       query?: never;
@@ -173,6 +254,47 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
+    /**
+     * AskOut
+     * @description A current listing: an asking price, not a sale. Never used for estimates.
+     */
+    AskOut: {
+      /** Bid Count */
+      bid_count: number | null;
+      /** Buying Option */
+      buying_option: string;
+      /** Condition */
+      condition: string;
+      /** Ends At */
+      ends_at: string | null;
+      /** Grade */
+      grade: string | null;
+      /** Grader */
+      grader: string | null;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Image Url */
+      image_url: string | null;
+      /**
+       * Observed At
+       * Format: date-time
+       * @description When this price was last seen
+       */
+      observed_at: string;
+      price: components["schemas"]["MoneyOut"];
+      /** Source */
+      source: string;
+      /** Title */
+      title: string;
+      /**
+       * Url
+       * @description Listing link (an affiliate link when configured)
+       */
+      url: string | null;
+    };
     /**
      * CardIdentity
      * @description What a card *is*, as a collector would describe it.
@@ -259,10 +381,79 @@ export interface components {
       year: number;
     };
     /**
+     * CompOut
+     * @description A completed sale of this card (analytics-licensed sources only).
+     */
+    CompOut: {
+      /** Condition */
+      condition: string;
+      /** Grade */
+      grade: string | null;
+      /** Grader */
+      grader: string | null;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Match
+       * @description `exact`: same grader and grade (or both raw). `nearest`: closest grade.
+       * @enum {string}
+       */
+      match: "exact" | "nearest";
+      /**
+       * Mine
+       * @description A manual sale you entered (you can delete it)
+       */
+      mine: boolean;
+      price: components["schemas"]["MoneyOut"];
+      /** Sale Type */
+      sale_type: string | null;
+      /**
+       * Sold At
+       * Format: date-time
+       */
+      sold_at: string;
+      /** Source */
+      source: string;
+      /** Title */
+      title: string;
+      /**
+       * Url
+       * @description Link to the sale, when the source has one (http/https)
+       */
+      url: string | null;
+    };
+    /**
      * Condition
      * @enum {string}
      */
     Condition: "raw" | "graded";
+    /** EstimateOut */
+    EstimateOut: {
+      /**
+       * Grade
+       * @description The grade compared, e.g. "PSA 10" or "Raw"
+       */
+      grade: string;
+      /**
+       * Latest Sale At
+       * Format: date-time
+       */
+      latest_sale_at: string;
+      /**
+       * Sample Size
+       * @description Sales in the median (at most 10)
+       */
+      sample_size: number;
+      value: components["schemas"]["MoneyOut"];
+      /**
+       * Window Days
+       * @description Only sales within this many days count
+       */
+      window_days: number;
+    };
     /** FieldError */
     FieldError: {
       /**
@@ -349,6 +540,31 @@ export interface components {
       /** @default null */
       front?: components["schemas"]["ImageOut"] | null;
     };
+    /** ItemMarketOut */
+    ItemMarketOut: {
+      /**
+       * Asks
+       * @description Up to 5 current listings, cheapest first
+       */
+      asks: components["schemas"]["AskOut"][];
+      /**
+       * Comps
+       * @description Up to 5: exact grade first, then nearest, newest
+       */
+      comps: components["schemas"]["CompOut"][];
+      estimate: components["schemas"]["EstimateOut"] | null;
+      /**
+       * Grade
+       * @description How the item is compared, e.g. "PSA 10" or "Raw"
+       */
+      grade: string;
+      /**
+       * Item Id
+       * Format: uuid
+       */
+      item_id: string;
+      last_sync: components["schemas"]["SyncJobOut"] | null;
+    };
     /** ItemOut */
     ItemOut: {
       /** Acquired On */
@@ -363,7 +579,9 @@ export interface components {
        * Format: date-time
        */
       created_at: string;
-      /** @description Market-based estimate. Null until market data is available (Phase 2). */
+      /** @description The estimate and what it's based on */
+      estimate: components["schemas"]["EstimateOut"] | null;
+      /** @description Median of recent sales at this card's exact grade; null without any. Same as `estimate.value`. */
       estimated_value: components["schemas"]["MoneyOut"] | null;
       /**
        * Grade
@@ -398,6 +616,41 @@ export interface components {
        * @description Pass as `cursor` for the next page; null at the end
        */
       next_cursor: string | null;
+    };
+    /** ManualSale */
+    ManualSale: {
+      /** @default raw */
+      condition?: components["schemas"]["Condition"];
+      /**
+       * Grade
+       * @default null
+       */
+      grade?: number | string | null;
+      /** @default null */
+      grader?: components["schemas"]["Grader"] | null;
+      price: components["schemas"]["MoneyInput"];
+      /** @default other */
+      sale_type?: components["schemas"]["SaleType"];
+      /**
+       * Sold On
+       * Format: date
+       */
+      sold_on: string;
+      /**
+       * Title
+       * @default null
+       */
+      title?: string | null;
+      /**
+       * Url
+       * @default null
+       */
+      url?: string | null;
+    };
+    /** ManualSales */
+    ManualSales: {
+      /** Sales */
+      sales: components["schemas"]["ManualSale"][];
     };
     /** MeOut */
     MeOut: {
@@ -560,6 +813,17 @@ export interface components {
       /** Type */
       type: string;
     };
+    /**
+     * SaleType
+     * @enum {string}
+     */
+    SaleType: "auction" | "fixed_price" | "best_offer" | "other";
+    /** SalesAddedOut */
+    SalesAddedOut: {
+      /** Added */
+      added: number;
+      market: components["schemas"]["ItemMarketOut"];
+    };
     /** SetList */
     SetList: {
       /** Items */
@@ -598,6 +862,30 @@ export interface components {
        * @description Hex SHA-256 of the file
        */
       sha256: string;
+    };
+    /** SyncJobOut */
+    SyncJobOut: {
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /** Error */
+      error: string | null;
+      /** Finished At */
+      finished_at: string | null;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Started At */
+      started_at: string | null;
+      /**
+       * Status
+       * @enum {string}
+       */
+      status: "queued" | "running" | "succeeded" | "failed";
     };
     /** UploadStartedOut */
     UploadStartedOut: {
@@ -1089,6 +1377,184 @@ export interface operations {
       };
     };
   };
+  collection_get_comps_items__uuid_item_id__comps_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        item_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ItemMarketOut"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProblemOut"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProblemOut"];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ValidationProblemOut"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProblemOut"];
+        };
+      };
+    };
+  };
+  collection_add_sales_items__uuid_item_id__comps_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        item_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ManualSales"];
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SalesAddedOut"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProblemOut"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProblemOut"];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ValidationProblemOut"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProblemOut"];
+        };
+      };
+    };
+  };
+  collection_refresh_comps_items__uuid_item_id__comps_refresh_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        item_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Accepted */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SyncJobOut"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProblemOut"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProblemOut"];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ValidationProblemOut"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProblemOut"];
+        };
+      };
+    };
+  };
   collection_start_upload_items__uuid_item_id__images_post: {
     parameters: {
       query?: never;
@@ -1253,6 +1719,120 @@ export interface operations {
           [name: string]: unknown;
         };
         content?: never;
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ValidationProblemOut"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProblemOut"];
+        };
+      };
+    };
+  };
+  market_delete_sale_sales__uuid_sale_id__delete: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        sale_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description No Content */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProblemOut"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProblemOut"];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ValidationProblemOut"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProblemOut"];
+        };
+      };
+    };
+  };
+  market_get_sync_job_sync_jobs__uuid_job_id__get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        job_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SyncJobOut"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProblemOut"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProblemOut"];
+        };
       };
       /** @description Unprocessable Content */
       422: {

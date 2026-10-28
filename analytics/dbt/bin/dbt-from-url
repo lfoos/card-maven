@@ -1,0 +1,40 @@
+#!/usr/bin/env python3
+"""Run dbt with connection settings taken from CARD_MAVEN_DATABASE_URL.
+
+Kubernetes already provides the application's database URL as a secret; this
+splits it into the DBT_PG_* variables profiles.yml reads, then execs dbt.
+Usage: dbt-from-url build --target default
+"""
+
+import os
+import sys
+from urllib.parse import unquote, urlsplit
+
+
+def connection_env(url: str) -> dict[str, str]:
+    parts = urlsplit(url)
+    if not parts.scheme.startswith("postgresql"):
+        raise SystemExit("CARD_MAVEN_DATABASE_URL must be a postgresql:// URL")
+    env = {
+        "DBT_PG_HOST": parts.hostname or "localhost",
+        "DBT_PG_PORT": str(parts.port or 5432),
+        "DBT_PG_USER": unquote(parts.username or ""),
+        "DBT_PG_PASSWORD": unquote(parts.password or ""),
+        "DBT_PG_DATABASE": parts.path.lstrip("/"),
+    }
+    for option in parts.query.split("&"):
+        key, _, value = option.partition("=")
+        if key == "sslmode" and value:
+            env["DBT_PG_SSLMODE"] = value
+    return env
+
+
+def main() -> None:
+    url = os.environ.get("CARD_MAVEN_DATABASE_URL")
+    if url:
+        os.environ.update(connection_env(url))
+    os.execvp("dbt", ["dbt", *sys.argv[1:]])
+
+
+if __name__ == "__main__":
+    main()

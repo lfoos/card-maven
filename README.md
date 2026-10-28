@@ -2,15 +2,15 @@
 
 Card Maven helps sports card collectors track what they own and value it against the market. You add cards by hand or by photographing a group of them, see recent comparable sales, get an estimated PSA grade, and follow price and volume trends across baseball, basketball, football, and hockey.
 
-> **Status: Phase 1 (collection).** Collectors can sign in, add and edit cards, upload front and back photos, and browse their collection. Market data arrives in Phase 2. See the [implementation plan](docs/IMPLEMENTATION_PLAN.md) for the roadmap. The previous SQLite app is preserved on the [`legacy-v0`](https://github.com/lfoos/card-maven/tree/legacy-v0) branch.
+> **Status: Phase 2 (market data).** Collectors can manage their collection, pull recent comparable sales with **Get comps**, see an estimated value per card, add sales they know of, and see current eBay asking prices. A nightly job syncs every tracked set. Card recognition from photos arrives in Phase 3. See the [implementation plan](docs/IMPLEMENTATION_PLAN.md) for the roadmap. The previous SQLite app is preserved on the [`legacy-v0`](https://github.com/lfoos/card-maven/tree/legacy-v0) branch.
 
 ## Features
 
 | Feature | Phase | Status |
 |---|---|---|
-| Collection: sport, year, brand, player, parallel, card, team, grade, estimated value | 1 | **Available** (estimated value shows once Phase 2 lands) |
-| Comps: last 5 sales for a card | 2 | Planned |
-| Nightly market sync for tracked sets | 2 | Tracked-set config ready |
+| Collection: sport, year, brand, player, parallel, card, team, grade, estimated value | 1–2 | **Available** |
+| Comps: last 5 sales for a card, exact grade first; your own sales; current eBay asks | 2 | **Available** |
+| Nightly market sync for tracked sets | 2 | **Available** |
 | Photo of many cards → cropped and identified, user confirms | 3 | Planned |
 | Estimated PSA grade with grade-matched comps | 4 | Planned |
 | Trends dashboard: price, volume, rising/falling players | 5 | Planned |
@@ -24,6 +24,8 @@ A React web app talks to a Flask API. Slow work (market sync, photo recognition,
 - [Architecture decision records](docs/adr/README.md)
 - [API reference](docs/api/README.md) (OpenAPI contract: [`contracts/openapi.json`](contracts/openapi.json))
 - [User guide: managing your collection](docs/user-guide/collection.md)
+- [User guide: comps and estimated values](docs/user-guide/market.md)
+- [Analytics (dbt) project](analytics/dbt/README.md)
 
 | Layer | Technology |
 |---|---|
@@ -31,7 +33,7 @@ A React web app talks to a Flask API. Slow work (market sync, photo recognition,
 | API | Python 3.12+, Flask 3, Pydantic 2, gunicorn |
 | Domain and data | SQLAlchemy 2, Alembic, Postgres 16 + pgvector |
 | Events | Kafka (KRaft locally, MSK on AWS), transactional outbox |
-| Analytics | dbt (Phase 2+) |
+| Analytics | dbt 1.12 (Postgres adapter) |
 | AI | Anthropic API behind a swappable `VisionModel` port (Phase 3+) |
 | Auth | OIDC Authorization Code + PKCE: Keycloak / Cognito |
 | Infra | Docker, Kubernetes (Helm), Terraform, AWS |
@@ -73,10 +75,37 @@ Run `make help` for everything. The most-used targets:
 | `make openapi` | Regenerate `contracts/openapi.json` after changing the API (then `cd apps/web && pnpm gen:api`) |
 | `make check` | Lint, typecheck, validate config, and run all tests (what CI runs) |
 | `make relay` | Run the outbox relay (publishes events to Kafka) |
+| `make market-worker` | Run the market sync worker (handles Get comps and the nightly sync) |
+| `make market-sync` | Queue a sync for every tracked set, like the nightly job does |
+| `make maintenance` | Purge stale eBay listings and abandoned photo uploads |
+| `make dbt` | Build and test the analytics marts |
 
 ## Configuration
 
 Settings come from `CARD_MAVEN_*` environment variables, and the defaults target the local stack. See [`.env.example`](.env.example) and [`apps/web/.env.example`](apps/web/.env.example). In `dev`/`prod`, the service refuses to start with local-only values (the default database password, `http://` identity provider URLs, or wildcard CORS).
+
+### Market data sources
+
+Every source carries a license that decides what its data may be used for ([ADR-0009](docs/adr/0009-market-data-licensing.md)):
+
+| Source | License | Used for |
+|---|---|---|
+| `manual`: sales you enter or import from CSV | analytics | Your comps and estimates (private to you) |
+| `fixture`: sample sales for local development | analytics | Comps and estimates locally; refused outside local/test |
+| `ebay_browse`: eBay Browse API | **display only** | Current asking prices with links. Never estimates, comps, or trends. Shown for at most 6 hours. |
+
+`CARD_MAVEN_MARKET_SOURCES` picks the enabled sources (default `["fixture","ebay_browse"]`; deployed environments must drop `fixture`).
+
+**eBay keys.** Create a keyset at [developer.ebay.com](https://developer.ebay.com/my/keys), then put it in your git-ignored `.env`. Never commit keys:
+
+```bash
+CARD_MAVEN_EBAY_ENVIRONMENT=sandbox        # or production
+CARD_MAVEN_EBAY_CLIENT_ID=...
+CARD_MAVEN_EBAY_CLIENT_SECRET=...
+CARD_MAVEN_EBAY_CAMPAIGN_ID=...            # optional: eBay Partner Network, for affiliate links
+```
+
+Check the keys with `uv run card-maven market-search Topps Chrome --year 2024` (it prints what eBay returns and stores nothing). Then load eBay's trading-card vocabulary (parallel names, graders) with `uv run card-maven sync-ebay-taxonomy`.
 
 ### Tracked sets
 
@@ -102,9 +131,10 @@ CI validates the file (`make check-config`). Brands and sports must exist in [`c
 ```
 apps/web/              React web app
 services/api/          Flask HTTP API
-services/workers/      Kafka workers and the `card-maven` admin CLI
+services/workers/      Kafka workers (outbox relay, market sync) and the `card-maven` CLI
 packages/card_maven/   Shared domain: identity, catalog, collection, market, shared infra
 db/migrations/         Alembic migrations (the schema's source of truth)
+analytics/dbt/         dbt project: shared-market marts
 config/                Tracked sets and reference data (validated YAML)
 contracts/openapi.json HTTP API contract (generated, drift-checked)
 contracts/events/      Event envelope and payload JSON Schemas

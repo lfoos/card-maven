@@ -12,6 +12,7 @@ def test_defaults_target_local_stack() -> None:
 
 DEPLOYED = {
     "CARD_MAVEN_DATABASE_URL": "postgresql+psycopg://app:s3cret@db.internal:5432/card_maven",
+    "CARD_MAVEN_MARKET_SOURCES": '["ebay_browse"]',
     "CARD_MAVEN_S3_ENDPOINT_URL": "",
     "CARD_MAVEN_S3_ACCESS_KEY_ID": "",
     "CARD_MAVEN_S3_SECRET_ACCESS_KEY": "",
@@ -106,3 +107,26 @@ class TestStorageDeploymentGuards:
         monkeypatch.setenv(name, value)
         with pytest.raises(ValueError, match="IAM role"):
             Settings(_env_file=None)  # type: ignore[call-arg]
+
+
+class TestMarketDeploymentGuards:
+    @pytest.fixture(autouse=True)
+    def deployed(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        for name, value in DEPLOYED.items():
+            monkeypatch.setenv(name, value)
+        monkeypatch.setenv("CARD_MAVEN_ENVIRONMENT", "prod")
+
+    def test_sample_data_source_refused(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("CARD_MAVEN_MARKET_SOURCES", '["fixture", "ebay_browse"]')
+        with pytest.raises(ValueError, match="fixture market source"):
+            Settings(_env_file=None)  # type: ignore[call-arg]
+
+    def test_ebay_settings(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("CARD_MAVEN_EBAY_ENVIRONMENT", "production")
+        monkeypatch.setenv("CARD_MAVEN_EBAY_CLIENT_ID", "app-id")
+        monkeypatch.setenv("CARD_MAVEN_EBAY_CLIENT_SECRET", "cert-id")
+        monkeypatch.setenv("CARD_MAVEN_EBAY_CAMPAIGN_ID", "")
+        settings = Settings(_env_file=None)  # type: ignore[call-arg]
+        assert settings.ebay_configured
+        assert settings.ebay_campaign_id is None  # empty means unset
+        assert "cert-id" not in repr(settings)

@@ -14,6 +14,11 @@ x-app-env: &app-env
   CARD_MAVEN_OIDC_JWKS_URL: http://keycloak:8080/realms/card-maven/protocol/openid-connect/certs
   CARD_MAVEN_S3_ENDPOINT_URL: http://seaweedfs:8333
   CARD_MAVEN_S3_PUBLIC_ENDPOINT_URL: http://localhost:8333  # what the browser uses
+  # eBay keys pass through from your shell or .env; never commit them.
+  CARD_MAVEN_EBAY_ENVIRONMENT: ${CARD_MAVEN_EBAY_ENVIRONMENT:-sandbox}
+  CARD_MAVEN_EBAY_CLIENT_ID: ${CARD_MAVEN_EBAY_CLIENT_ID:-}
+  CARD_MAVEN_EBAY_CLIENT_SECRET: ${CARD_MAVEN_EBAY_CLIENT_SECRET:-}
+  CARD_MAVEN_EBAY_CAMPAIGN_ID: ${CARD_MAVEN_EBAY_CAMPAIGN_ID:-}
 
 services:
   postgres:
@@ -104,6 +109,15 @@ services:
     profiles: [app]
     build: { context: ../.., dockerfile: services/workers/Dockerfile }
     command: ["outbox-relay"]
+    environment: *app-env
+    depends_on:
+      postgres: { condition: service_healthy }
+      kafka-init: { condition: service_completed_successfully }
+
+  market-worker:
+    profiles: [app]
+    build: { context: ../.., dockerfile: services/workers/Dockerfile }
+    command: ["market-worker"]
     environment: *app-env
     depends_on:
       postgres: { condition: service_healthy }

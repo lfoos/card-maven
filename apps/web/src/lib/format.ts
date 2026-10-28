@@ -47,3 +47,31 @@ export function parallelLine(item: Item): string | null {
   if (isBase && !serial) return null;
   return [isBase ? "" : parallel.name, serial].filter(Boolean).join(" ");
 }
+
+const SOURCES: Record<string, string> = {
+  manual: "You",
+  fixture: "Sample data",
+  ebay_browse: "eBay",
+};
+
+export function sourceLabel(code: string): string {
+  return SOURCES[code] ?? code;
+}
+
+/** "Oct 27, 2026". Dates from the API are UTC. */
+export function formatDate(iso: string): string {
+  return new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone: "UTC" }).format(
+    new Date(iso),
+  );
+}
+
+/** "just now", "12 min ago", "3 h ago", "2 days ago". */
+export function formatAge(iso: string, now: Date = new Date()): string {
+  const minutes = Math.max(0, Math.round((now.getTime() - new Date(iso).getTime()) / 60000));
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} h ago`;
+  const days = Math.round(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}

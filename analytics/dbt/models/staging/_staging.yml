@@ -1,0 +1,19 @@
+version: 2
+
+models:
+  - name: stg_market__sales
+    description: Shared, matched sales from analytics-licensed sources only.
+    columns:
+      - name: sale_id
+        data_tests: [unique, not_null]
+      - name: variant_id
+        data_tests: [not_null]
+      - name: condition
+        data_tests:
+          - accepted_values:
+              arguments: { values: ["raw", "graded"] }
+  - name: stg_catalog__variants
+    description: One row per card variant with its set and parallel.
+    columns:
+      - name: variant_id
+        data_tests: [unique, not_null]

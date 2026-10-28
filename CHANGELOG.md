@@ -4,6 +4,43 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.3.0] - Phase 2: Market data
+
+Collectors can now value their cards against the market.
+
+### Added
+- **Get comps.**
+  - Each card's page has a Market panel showing its 5 most relevant recent sales (exact grade first, then the nearest grade), with links where available.
+  - **Get comps** checks market sources and refreshes the panel.
+  - Collectors who refresh the same card share one sync, and a sync that finished in the last 15 minutes is reused.
+- **Estimated value** on every card: the median of up to 10 recent sales at the card's exact grade within 180 days, shown with what it's based on. Appears in the collection grid and table too.
+- **Your own sales.** Record sales you know of, one at a time or by pasting or uploading CSV (up to 200 per import). They're private to you and count toward your comps and estimate.
+- **Current eBay listings.** Asking prices with links (eBay Partner Network affiliate links when configured), clearly labelled as asks. They're never used for estimates.
+- **Nightly sync.** Every tracked set is synced at 02:30 (America/Denver). An hourly maintenance job purges eBay listings older than 6 hours and abandoned photo uploads.
+- **Market pipeline.**
+  - `market-worker` consumes `market.sync.requested`, retries transient failures 3 times, and dead-letters to `market.sync.requested.dlq`.
+  - Rule-based title matching uses eBay's trading-card vocabulary (`card-maven sync-ebay-taxonomy`).
+  - Event payload schemas live in `contracts/events/`.
+- **Analytics.** dbt project (`analytics/dbt`) with `mart_variant_value` and `mart_sales_daily`, unit tests, and a license-gate test. Runs nightly after the sync and in CI.
+- **API.**
+  - Comps: `GET /collection/items/{id}/comps`, `POST …/comps/refresh` (202), and `POST …/comps`.
+  - Market: `DELETE /market/sales/{id}` and `GET /market/sync-jobs/{id}`.
+  - `estimate` on every item.
+- **CLI.** `market-worker`, `request-market-sync [--run-now]`, `purge-market-data`, `sweep-uploads`, `sync-ebay-taxonomy`, and `market-search`.
+- **Infra.** market-worker Deployment and CronJobs (sync, maintenance, dbt) in the Helm chart, plus a `market-worker` compose service. CI adds Kafka integration tests, rendered-manifest validation, and a dbt job.
+- **Docs.** [ADR-0009: market data licensing](docs/adr/0009-market-data-licensing.md) and the [comps user guide](docs/user-guide/market.md).
+
+### Changed
+- `ItemOut.estimated_value` is now populated, and the new `estimate` field explains it.
+- `card_maven.reference_data` moved out of `catalog`. It now also seeds market sources.
+- Invalid settings make the CLI print a one-line error instead of a traceback.
+
+### Security
+- eBay data is display-only (eBay API License Agreement §8.1, §9.5). This is enforced at ingestion, in queries, and in dbt.
+- eBay keys are read from the environment, and only the market worker receives them in Kubernetes.
+- Only http(s) links reach the browser.
+- Manual sales are capped at 1,000 per collector per card.
+
 ## [0.2.0] - Phase 1: Identity and collection
 
 Collectors can now sign in and manage a collection.

@@ -1,0 +1,32 @@
+{{- if .Values.marketWorker.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "card-maven.fullname" . }}-market-worker
+  labels: {{- include "card-maven.labels" . | nindent 4 }}
+    app.kubernetes.io/component: market-worker
+spec:
+  # Scale up to the partition count of market.sync.requested (3).
+  replicas: {{ .Values.marketWorker.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: market-worker
+  template:
+    metadata:
+      labels: {{- include "card-maven.labels" . | nindent 8 }}
+        app.kubernetes.io/component: market-worker
+    spec:
+      serviceAccountName: {{ include "card-maven.serviceAccountName" . }}
+      # Long enough to finish the job in hand after SIGTERM.
+      terminationGracePeriodSeconds: 120
+      containers:
+        - name: market-worker
+          image: {{ include "card-maven.image" (list . .Values.image.workers) }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["market-worker"]
+          {{- include "card-maven.env" . | nindent 10 }}
+          {{- include "card-maven.ebayEnv" . | nindent 12 }}
+          {{- include "card-maven.containerSecurity" . | nindent 10 }}
+          resources: {{- toYaml .Values.marketWorker.resources | nindent 12 }}
+{{- end }}

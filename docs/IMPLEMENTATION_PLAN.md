@@ -1,6 +1,6 @@
 # Card Maven: Implementation Plan
 
-**Status:** Approved (PR #2). Phase 0 done. Phase 1 in review.
+**Status:** Approved (PR #2). Phases 0–2 done (Phase 2 in review). Phase 3 next.
 
 Card Maven lets collectors track their sports card collections and value them against live market data. This plan rebuilds the foundation on the target stack in seven gated phases. Each phase ends with a checkpoint, and work does not continue until it is approved.
 
@@ -291,6 +291,8 @@ The current repo has a SQLite/vanilla-JS app. Two of its price sources no longer
 ---
 
 ## 8. Market data source
+
+> **Update (Phase 2, 2026-10-27).** The eBay API License Agreement forbids using eBay content to model prices or derive selling-price statistics without written permission, and requires displayed listings to be at most 6 hours stale. So **eBay data is display-only** (current asks), and only `analytics`-licensed sources feed comps, estimates, and trends. See [ADR-0009](adr/0009-market-data-licensing.md). Market-wide estimates and trends need eBay's written consent or a licensed provider. Until then, they come from collectors' own (private) manual comps.
 
 We start with free sources, apply for the one free source of real sold comps, and add a paid provider only if we need one. Every source plugs into the same `MarketDataSource` port, so changing providers needs no schema change.
 

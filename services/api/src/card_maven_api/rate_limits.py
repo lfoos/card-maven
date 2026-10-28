@@ -17,6 +17,8 @@ from card_maven.shared.config import Settings
 
 UPLOAD_START_LIMIT = "30/minute"
 WRITE_LIMIT = "60/minute"
+# Each refresh may call external market sources; jobs are also deduplicated.
+COMPS_REFRESH_LIMIT = "10/minute"
 EXEMPT_ENDPOINTS = ("health.liveness", "health.readiness", "openapi_spec")
 _MARK = "_card_maven_rate_limit"
 _EXTENSION = "card_maven_limiter"

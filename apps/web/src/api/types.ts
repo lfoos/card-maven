@@ -29,3 +29,13 @@ export interface ItemFilters {
   condition?: Condition;
   sort?: ItemSort;
 }
+
+export type ItemMarket = Schemas["ItemMarketOut"];
+export type Comp = Schemas["CompOut"];
+export type Ask = Schemas["AskOut"];
+export type Estimate = Schemas["EstimateOut"];
+export type SyncJob = Schemas["SyncJobOut"];
+export type ManualSale = Schemas["ManualSale"];
+export type SalesAdded = Schemas["SalesAddedOut"];
+export type Grader = Schemas["Grader"];
+export type SaleType = Schemas["SaleType"];

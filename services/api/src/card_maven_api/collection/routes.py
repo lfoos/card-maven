@@ -10,9 +10,11 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from card_maven.collection.images import UPLOAD_URL_TTL_SECONDS, ImageService, UploadableKind
-from card_maven.collection.models import Condition
+from card_maven.collection.models import CollectionItem, Condition
 from card_maven.collection.schemas import ItemChanges, NewItem
 from card_maven.collection.service import CollectionService, ItemFilters, Sort
+from card_maven.market.collector import CollectorMarket
+from card_maven.market.manual import ManualSales
 from card_maven.shared.errors import DependencyUnavailableError
 from card_maven.shared.logging import get_logger
 from card_maven.shared.storage import ObjectStore
@@ -20,13 +22,21 @@ from card_maven_api.auth.decorators import current_user, require_user
 from card_maven_api.db import transaction
 from card_maven_api.extensions import api_context
 from card_maven_api.openapi import BEARER, NOT_FOUND, PROTECTED_RESPONSES
-from card_maven_api.presenters import image_out, item_out
-from card_maven_api.rate_limits import UPLOAD_START_LIMIT, WRITE_LIMIT, rate_limited
+from card_maven_api.presenters import image_out, item_market_out, item_out, sync_job_out
+from card_maven_api.rate_limits import (
+    COMPS_REFRESH_LIMIT,
+    UPLOAD_START_LIMIT,
+    WRITE_LIMIT,
+    rate_limited,
+)
 from card_maven_api.schemas import (
     ImageOut,
+    ItemMarketOut,
     ItemOut,
     ItemPageOut,
     PresignedPostOut,
+    SalesAddedOut,
+    SyncJobOut,
     UploadStartedOut,
 )
 
@@ -79,6 +89,12 @@ def _services(session: Session) -> tuple[CollectionService, ImageService]:
     return CollectionService(session, owner), ImageService(session, owner, _store())
 
 
+def _present(session: Session, items: list[CollectionItem], images: ImageService) -> list[ItemOut]:
+    """Items with their estimates, computed in one query for the whole list."""
+    estimates = CollectorMarket(session, current_user().id).estimates(items)
+    return [item_out(i, images, estimates.get(i.id)) for i in items]
+
+
 def _delete_objects(keys: Iterable[str]) -> None:
     """Best-effort cleanup after the database commit. A failure leaves an orphan
     (logged with its key) rather than failing a request that already succeeded."""
@@ -108,7 +124,7 @@ def list_items(query: ListQuery) -> dict[str, object]:
             limit=query.limit,
         )
         out = ItemPageOut(
-            items=[item_out(i, images) for i in page.items], next_cursor=page.next_cursor
+            items=_present(session, list(page.items), images), next_cursor=page.next_cursor
         )
     return out.model_dump(mode="json")
 
@@ -119,7 +135,7 @@ def list_items(query: ListQuery) -> dict[str, object]:
 def create_item(body: NewItem) -> tuple[dict[str, object], int]:
     with transaction() as session:
         items, images = _services(session)
-        out = item_out(items.create(body), images)
+        [out] = _present(session, [items.create(body)], images)
     return out.model_dump(mode="json"), 201
 
 
@@ -128,7 +144,7 @@ def create_item(body: NewItem) -> tuple[dict[str, object], int]:
 def get_item(path: ItemPath) -> dict[str, object]:
     with transaction() as session:
         items, images = _services(session)
-        out = item_out(items.get(path.item_id), images)
+        [out] = _present(session, [items.get(path.item_id)], images)
     return out.model_dump(mode="json")
 
 
@@ -143,7 +159,7 @@ def get_item(path: ItemPath) -> dict[str, object]:
 def update_item(path: ItemPath, body: ItemChanges) -> dict[str, object]:
     with transaction() as session:
         items, images = _services(session)
-        out = item_out(items.update(path.item_id, body), images)
+        [out] = _present(session, [items.update(path.item_id, body)], images)
     return out.model_dump(mode="json")
 
 
@@ -220,3 +236,58 @@ def delete_image(path: ImagePath) -> tuple[str, int]:
         key = images.delete(path.item_id, path.image_id)
     _delete_objects([key])
     return "", 204
+
+
+# ---- Market data for one card ------------------------------------------------
+
+
+@bp.get(
+    "/items/<uuid:item_id>/comps",
+    summary="Get comps",
+    description="Recent sales of this card (exact grade first), its estimated value, current "
+    "listings (asking prices, never used for the estimate), and the latest market sync.",
+    responses={200: ItemMarketOut, **NOT_FOUND},
+)
+@require_user
+def get_comps(path: ItemPath) -> dict[str, object]:
+    viewer = current_user().id
+    with transaction() as session:
+        out = item_market_out(CollectorMarket(session, viewer).overview(path.item_id), viewer)
+    return out.model_dump(mode="json")
+
+
+@bp.post(
+    "/items/<uuid:item_id>/comps/refresh",
+    summary="Refresh comps from market sources",
+    description="Queues a market sync for this card and returns the job; poll "
+    "`/market/sync-jobs/{job_id}`, then reload comps. A sync already queued or running, or "
+    "one that finished in the last 15 minutes, is returned instead of starting another.",
+    responses={202: SyncJobOut, **NOT_FOUND},
+)
+@rate_limited(COMPS_REFRESH_LIMIT)
+@require_user
+def refresh_comps(path: ItemPath) -> tuple[dict[str, object], int]:
+    with transaction() as session:
+        requested = CollectorMarket(session, current_user().id).refresh(path.item_id)
+        out = sync_job_out(requested.job)
+    return out.model_dump(mode="json"), 202
+
+
+@bp.post(
+    "/items/<uuid:item_id>/comps",
+    summary="Add sales you know of",
+    description="Record 1-200 sales of this card (e.g. from a CSV). They count toward your "
+    "comps and estimates only; other collectors never see them.",
+    responses={201: SalesAddedOut, **NOT_FOUND},
+)
+@rate_limited(WRITE_LIMIT)
+@require_user
+def add_sales(path: ItemPath, body: ManualSales) -> tuple[dict[str, object], int]:
+    viewer = current_user().id
+    with transaction() as session:
+        market = CollectorMarket(session, viewer)
+        added = market.add_sales(path.item_id, body)
+        out = SalesAddedOut(
+            added=len(added), market=item_market_out(market.overview(path.item_id), viewer)
+        )
+    return out.model_dump(mode="json"), 201

@@ -1,0 +1,16 @@
+# Connection comes from the environment. Locally the defaults match `make up`;
+# in Kubernetes, bin/dbt-from-url derives these from CARD_MAVEN_DATABASE_URL.
+card_maven:
+  target: default
+  outputs:
+    default:
+      type: postgres
+      host: "{{ env_var('DBT_PG_HOST', 'localhost') }}"
+      port: "{{ env_var('DBT_PG_PORT', '5432') | as_number }}"
+      user: "{{ env_var('DBT_PG_USER', 'card_maven') }}"
+      password: "{{ env_var('DBT_PG_PASSWORD', 'card_maven') }}"
+      dbname: "{{ env_var('DBT_PG_DATABASE', 'card_maven') }}"
+      # Marts live in their own schema, apart from the application tables.
+      schema: "{{ env_var('DBT_PG_SCHEMA', 'analytics') }}"
+      sslmode: "{{ env_var('DBT_PG_SSLMODE', 'prefer') }}"
+      threads: 4

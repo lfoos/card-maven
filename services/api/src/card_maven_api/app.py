@@ -7,6 +7,7 @@ from pydantic import ValidationError
 from sqlalchemy.orm import Session, sessionmaker
 from werkzeug.middleware.proxy_fix import ProxyFix
 
+import card_maven.models  # noqa: F401  (registers every table, for cross-context foreign keys)
 from card_maven.shared.config import Settings, get_settings
 from card_maven.shared.db import make_engine, make_session_factory
 from card_maven.shared.logging import configure_logging
@@ -19,6 +20,7 @@ from card_maven_api.collection.routes import bp as collection_bp
 from card_maven_api.extensions import EXTENSION_KEY, ApiContext
 from card_maven_api.health.routes import bp as health_bp
 from card_maven_api.identity.routes import bp as identity_bp
+from card_maven_api.market.routes import bp as market_bp
 from card_maven_api.middleware import register_middleware
 from card_maven_api.openapi import INFO, SECURITY_SCHEMES
 from card_maven_api.problems import register_problem_handlers, validation_problem
@@ -82,5 +84,6 @@ def create_app(
     app.register_api(identity_bp)
     app.register_api(catalog_bp)
     app.register_api(collection_bp)
+    app.register_api(market_bp)
     init_rate_limits(app, settings)
     return app

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { ApiError } from "../../api/errors";
 import { formatGrade, formatMoney, parallelLine, setLine, sportLabel } from "../../lib/format";
+import { MarketPanel } from "../market/MarketPanel";
 import { PhotoSlot } from "./PhotoSlot";
 import { useDeleteItem, useItem } from "./queries";
 
@@ -129,6 +130,8 @@ export function ItemDetailPage() {
           ) : null}
         </dl>
       </div>
+
+      <MarketPanel itemId={item.id} />
     </section>
   );
 }

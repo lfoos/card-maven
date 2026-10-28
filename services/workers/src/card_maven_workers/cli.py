@@ -8,18 +8,33 @@ from dataclasses import asdict
 from pathlib import Path
 
 import click
-from sqlalchemy import Engine
+from pydantic import ValidationError
+from sqlalchemy import Engine, delete
 from sqlalchemy.orm import Session, sessionmaker
 
-from card_maven.catalog.reference_data import load_reference_data, seed_reference_data
+import card_maven.models  # noqa: F401  (registers every table, for cross-context foreign keys)
+from card_maven.collection.maintenance import sweep_abandoned_uploads
+from card_maven.market.ingestion import MarketSyncService, sync_event
+from card_maven.market.maintenance import purge_market_data
+from card_maven.market.models import CatalogTerm
+from card_maven.market.parsing import parse_title
+from card_maven.market.sources.ebay import EbayApi, EbayConfig, EbayTaxonomyClient
+from card_maven.market.sources.port import MarketQuery
+from card_maven.market.sources.registry import build_sources
 from card_maven.market.tracked_sets import expand, load_tracked_sets, sync_tracked_sets
+from card_maven.reference_data import load_reference_data, seed_reference_data
+from card_maven.shared.clock import utcnow
 from card_maven.shared.config import Settings
 from card_maven.shared.db import make_engine, make_session_factory, session_scope
 from card_maven.shared.errors import CardMavenError
 from card_maven.shared.logging import configure_logging
 from card_maven.shared.outbox import OutboxRelay
 from card_maven.shared.storage.s3 import S3ObjectStore
+from card_maven_workers.consumer import ConsumerLoop, kafka_consumer
 from card_maven_workers.kafka import KafkaPublisher
+from card_maven_workers.market_worker import CONSUMER as MARKET_CONSUMER
+from card_maven_workers.market_worker import TOPIC as MARKET_TOPIC
+from card_maven_workers.market_worker import MarketSyncHandler
 from card_maven_workers.relay import run_relay
 
 
@@ -53,7 +68,11 @@ def _fail(error: CardMavenError) -> None:
 @click.pass_context
 def cli(ctx: click.Context) -> None:
     """Card Maven operational commands."""
-    settings = Settings()
+    try:
+        settings = Settings()
+    except ValidationError as error:
+        problems = "; ".join(e["msg"].removeprefix("Value error, ") for e in error.errors())
+        raise click.ClickException(f"invalid settings: {problems}") from None
     configure_logging(settings.log_level, json=settings.log_json)
     ctx.obj = Context(settings)
     ctx.call_on_close(ctx.obj.close)
@@ -91,7 +110,10 @@ def seed(obj: Context) -> None:
     except CardMavenError as error:
         _fail(error)
         return
-    click.echo(f"seeded {result.sports} sports and {result.brands} brands")
+    click.echo(
+        f"seeded {result.sports} sports, {result.brands} brands, "
+        f"{result.market_sources} market sources"
+    )
 
 
 @cli.command("sync-tracked-sets")
@@ -155,7 +177,130 @@ def outbox_relay(obj: Context, once: bool) -> None:
         click.echo(f"published={result.published} failed={result.failed}")
         return
 
+    run_relay(
+        relay,
+        poll_interval_seconds=obj.settings.outbox_poll_interval_seconds,
+        stop=_stop_on_signals(),
+    )
+
+
+def _stop_on_signals() -> threading.Event:
     stop = threading.Event()
     for sig in (signal.SIGTERM, signal.SIGINT):
         signal.signal(sig, lambda *_: stop.set())
-    run_relay(relay, poll_interval_seconds=obj.settings.outbox_poll_interval_seconds, stop=stop)
+    return stop
+
+
+# ---- Market data -------------------------------------------------------------
+
+
+@cli.command("market-worker")
+@click.option("--max-messages", type=int, default=None, help="Exit after this many (testing).")
+@click.pass_obj
+def market_worker(obj: Context, max_messages: int | None) -> None:
+    """Consume market.sync.requested and run each sync job until SIGTERM/SIGINT."""
+    settings = obj.settings
+    loop = ConsumerLoop(
+        kafka_consumer(settings.kafka_bootstrap_servers, group_id=MARKET_CONSUMER),
+        MARKET_TOPIC,
+        MarketSyncHandler(obj.session_factory(), build_sources(settings)),
+        KafkaPublisher(settings.kafka_bootstrap_servers),
+    )
+    handled = loop.run(_stop_on_signals(), max_messages=max_messages)
+    click.echo(f"handled={handled}")
+
+
+@cli.command("request-market-sync")
+@click.option(
+    "--run-now",
+    is_flag=True,
+    help="Also run the jobs here, without Kafka (local development and CI).",
+)
+@click.pass_obj
+def request_market_sync(obj: Context, run_now: bool) -> None:
+    """Queue a market sync for every active tracked set (the nightly job)."""
+    factory = obj.session_factory()
+    with session_scope(factory) as session:
+        jobs = MarketSyncService(session).request_tracked_set_syncs()
+        events = [sync_event(job) for job in jobs]
+    click.echo(f"queued {len(jobs)} tracked-set sync jobs")
+    if run_now:
+        # Same handler as the worker, so the queued events are later skipped
+        # as already processed if a worker does pick them up.
+        handler = MarketSyncHandler(factory, build_sources(obj.settings))
+        for event in events:
+            handler(event)
+        click.echo(f"ran {len(events)} jobs")
+
+
+@cli.command("purge-market-data")
+@click.pass_obj
+def purge_market_data_command(obj: Context) -> None:
+    """Delete display-only listings past their license's max age, and old sync jobs."""
+    with session_scope(obj.session_factory()) as session:
+        result = purge_market_data(session)
+    click.echo(
+        f"purged listings={result.listings} jobs={result.jobs} "
+        f"processed_events={result.processed_events}"
+    )
+
+
+@cli.command("sweep-uploads")
+@click.pass_obj
+def sweep_uploads(obj: Context) -> None:
+    """Delete photo uploads that were started but never completed (older than 24h)."""
+    with session_scope(obj.session_factory()) as session:
+        result = sweep_abandoned_uploads(session)
+    store = S3ObjectStore.from_settings(obj.settings)
+    orphaned = 0
+    for key in result.storage_keys:
+        try:
+            store.delete(key)
+        except CardMavenError:
+            orphaned += 1
+    click.echo(f"swept images={result.images} orphaned_objects={orphaned}")
+
+
+@cli.command("sync-ebay-taxonomy")
+@click.pass_obj
+def sync_ebay_taxonomy(obj: Context) -> None:
+    """Load eBay trading-card item specifics (parallels, graders) for title parsing."""
+    try:
+        values = EbayTaxonomyClient(EbayApi(EbayConfig.from_settings(obj.settings))).aspect_values()
+    except CardMavenError as error:
+        _fail(error)
+        return
+    with session_scope(obj.session_factory()) as session:
+        session.execute(delete(CatalogTerm).where(CatalogTerm.source == "ebay"))
+        session.add_all(CatalogTerm(source="ebay", aspect=a, value=v) for a, v in values)
+    click.echo(f"loaded {len(values)} eBay taxonomy terms")
+
+
+@cli.command("market-search")
+@click.argument("keywords", nargs=-1, required=True)
+@click.option("--source", "source_code", default="ebay_browse", show_default=True)
+@click.option("--year", type=int, required=True)
+@click.option("--sport", default="baseball", show_default=True)
+@click.pass_obj
+def market_search(
+    obj: Context, keywords: tuple[str, ...], source_code: str, year: int, sport: str
+) -> None:
+    """Query one source and print what it returns (for checking keys and queries).
+
+    Nothing is stored. Example: card-maven market-search Bowman Chrome --year 2025
+    """
+    sources = build_sources(obj.settings.model_copy(update={"market_sources": [source_code]}))
+    source = sources.get(source_code)
+    if source is None:
+        raise click.ClickException(f"source {source_code} is not available (check its settings)")
+    query = MarketQuery(sport=sport, year=year, set_name=" ".join(keywords), limit=10)
+    try:
+        records = source.fetch(query, now=utcnow())
+    except CardMavenError as error:
+        _fail(error)
+        return
+    for record in records:
+        parsed = parse_title(record.title)
+        grade = f"{parsed.grader} {parsed.grade}" if parsed.grader else "raw"
+        click.echo(f"{record.price}  {grade:<8}  {record.title}")
+    click.echo(f"{len(records)} records from {source_code}")

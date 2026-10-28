@@ -2,6 +2,7 @@
 # One line per topic. Topic = event type without its version (see contracts/events).
 market.sync.requested      3
 market.sales.ingested      6
+market.sync.requested.dlq  1
 scan.requested             3
 scan.completed             3
 grade.requested            3

@@ -468,3 +468,58 @@ input:disabled {
     gap: var(--space-3);
   }
 }
+
+/* ---- Market panel ---------------------------------------------------------- */
+.market {
+  margin-top: var(--space-6);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+.market__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.market__estimate {
+  margin: 1rem 0;
+}
+.market__value {
+  font-size: 2rem;
+  font-weight: 700;
+  margin: 0;
+}
+.market h3 {
+  margin-top: 1.5rem;
+  font-size: 1rem;
+}
+.asks {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+.asks__row {
+  display: grid;
+  grid-template-columns: 6rem 1fr;
+  gap: 0 1rem;
+}
+.asks__row .muted {
+  grid-column: 2;
+  font-size: 0.875rem;
+}
+.asks__price {
+  font-weight: 600;
+  grid-row: span 2;
+}
+.market__add {
+  margin-top: 1.5rem;
+}
+.market__add summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.market__add form {
+  margin-top: 1rem;
+}

@@ -1,0 +1,61 @@
+version: 2
+
+models:
+  - name: mart_variant_value
+    description: >
+      Market value per card variant and condition bucket over the trailing
+      `value_window_days` (default 90) ending at `as_of_date`. Analytics-licensed,
+      shared sales only.
+    columns:
+      - { name: variant_value_id, data_type: text, constraints: [{ type: not_null }], data_tests: [unique] }
+      - { name: variant_id, data_type: uuid, constraints: [{ type: not_null }] }
+      - name: condition_bucket
+        data_type: text
+        constraints: [{ type: not_null }]
+      - { name: currency, data_type: varchar(3), constraints: [{ type: not_null }] }
+      - name: sales_count
+        data_type: integer
+        data_tests:
+          - not_null
+      - { name: median_price_minor, data_type: "numeric(14,1)", description: "Median in minor units (cents); .5 when two middle sales average" }
+      - { name: min_price_minor, data_type: bigint }
+      - { name: max_price_minor, data_type: bigint }
+      - { name: latest_sold_at, data_type: timestamp with time zone }
+      - { name: as_of_date, data_type: date }
+  - name: mart_sales_daily
+    description: Sales per set per day, with volume and median price.
+    columns:
+      - { name: set_day_id, data_type: text, constraints: [{ type: not_null }], data_tests: [unique] }
+      - { name: sport, data_type: varchar(32) }
+      - { name: set_id, data_type: uuid }
+      - { name: year, data_type: smallint }
+      - { name: set_name, data_type: varchar(200) }
+      - { name: sold_on, data_type: date }
+      - { name: currency, data_type: varchar(3) }
+      - { name: sales_count, data_type: integer }
+      - { name: total_price_minor, data_type: bigint }
+      - { name: median_price_minor, data_type: "numeric(14,1)" }
+
+unit_tests:
+  - name: variant_value_median_window_and_buckets
+    description: Odd and even medians, the trailing window edges, and per-bucket grouping.
+    model: mart_variant_value
+    overrides:
+      vars: { as_of_date: "2026-10-27", value_window_days: 90 }
+    given:
+      - input: ref('int_sales_graded')
+        rows:
+          # PSA 10: three sales in window -> median 200
+          - { variant_id: "00000000-0000-0000-0000-0000000000a1", condition_bucket: PSA 10, currency: USD, price_minor: 100, sold_on: "2026-10-27", sold_at: "2026-10-27 10:00:00+00" }
+          - { variant_id: "00000000-0000-0000-0000-0000000000a1", condition_bucket: PSA 10, currency: USD, price_minor: 300, sold_on: "2026-08-01", sold_at: "2026-08-01 10:00:00+00" }
+          - { variant_id: "00000000-0000-0000-0000-0000000000a1", condition_bucket: PSA 10, currency: USD, price_minor: 200, sold_on: "2026-07-30", sold_at: "2026-07-30 10:00:00+00" }
+          # Outside the window: 90 days back is excluded, and the future is too.
+          - { variant_id: "00000000-0000-0000-0000-0000000000a1", condition_bucket: PSA 10, currency: USD, price_minor: 9999, sold_on: "2026-07-29", sold_at: "2026-07-29 10:00:00+00" }
+          - { variant_id: "00000000-0000-0000-0000-0000000000a1", condition_bucket: PSA 10, currency: USD, price_minor: 9999, sold_on: "2026-10-28", sold_at: "2026-10-28 10:00:00+00" }
+          # Raw: two sales -> median is their average
+          - { variant_id: "00000000-0000-0000-0000-0000000000a1", condition_bucket: Raw, currency: USD, price_minor: 10, sold_on: "2026-10-01", sold_at: "2026-10-01 10:00:00+00" }
+          - { variant_id: "00000000-0000-0000-0000-0000000000a1", condition_bucket: Raw, currency: USD, price_minor: 15, sold_on: "2026-10-02", sold_at: "2026-10-02 10:00:00+00" }
+    expect:
+      rows:
+        - { variant_id: "00000000-0000-0000-0000-0000000000a1", condition_bucket: PSA 10, currency: USD, sales_count: 3, median_price_minor: 200.0, min_price_minor: 100, max_price_minor: 300, latest_sold_at: "2026-10-27 10:00:00+00", as_of_date: "2026-10-27" }
+        - { variant_id: "00000000-0000-0000-0000-0000000000a1", condition_bucket: Raw, currency: USD, sales_count: 2, median_price_minor: 12.5, min_price_minor: 10, max_price_minor: 15, latest_sold_at: "2026-10-02 10:00:00+00", as_of_date: "2026-10-27" }

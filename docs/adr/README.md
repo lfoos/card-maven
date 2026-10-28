@@ -14,3 +14,4 @@ To add one, copy [template.md](template.md) as the next number and open it as pa
 | [0006](0006-versioned-event-contracts.md) | Versioned CloudEvents-style event contracts | Accepted |
 | [0007](0007-model-provenance.md) | Record model provenance on every inference | Accepted |
 | [0008](0008-money-time-and-identifier-conventions.md) | Money, time, and identifier conventions | Accepted |
+| [0009](0009-market-data-licensing.md) | Market data licensed per source; eBay display-only | Accepted |

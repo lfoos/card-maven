@@ -54,13 +54,49 @@ make web         # terminal 2: http://localhost:5173
 7. Sign out, register a second account, and open the first card's URL. You see "That card isn't in your collection."
 8. Delete a card. It disappears from the list.
 
+## Phase 2 smoke test
+
+1. Pull, then run `make bootstrap`. It applies migration `0003`, seeds the market sources, and creates the `market.sync.requested.dlq` topic.
+2. Start everything in four terminals: `make api`, `make web`, `make relay`, and `make market-worker`.
+3. Add the card **2024 Topps Chrome #1 Paul Skenes**, graded PSA 10. On its page, the Market panel says "Not synced yet".
+4. Click **Get comps**. Within a few seconds you should see:
+   - **Recent sales:** the sample PSA 10 sales first, then a PSA 9 marked *nearest*.
+   - **Estimated value:** $98.75, "Median of 2 PSA 10 sales…".
+   - **Collection:** the card shows the same estimate.
+5. Click **Get comps** again. It returns at once, because a sync from the last 15 minutes is reused.
+6. Open **Add sales you know of** and paste:
+   ```csv
+   date,price,grader,grade
+   2026-10-20,110.00,PSA,10
+   ```
+   The sale appears with a **Delete** button, and the estimate moves.
+7. Sign in as a second collector and add the same card. Your manual sale isn't visible there.
+8. Nightly job: `make market-sync` queues 39 tracked-set jobs, and the worker processes them. `make maintenance` purges stale listings.
+9. Analytics: `make dbt`. Every node passes. The marts are in the `analytics` schema.
+
+**Without Kafka:** `uv run card-maven request-market-sync --run-now` runs every tracked-set sync inline.
+
+### eBay sandbox
+
+1. Put your keyset in `.env` (git-ignored): `CARD_MAVEN_EBAY_ENVIRONMENT=sandbox`, `CARD_MAVEN_EBAY_CLIENT_ID`, and `CARD_MAVEN_EBAY_CLIENT_SECRET`.
+2. Check the keys: `uv run card-maven market-search Topps Chrome --year 2024`.
+   - Records printed means OAuth and search work.
+   - The sandbox returns eBay's mock items, which rarely match real cards. That's expected; production keys return real listings.
+3. Load the trading-card vocabulary with `uv run card-maven sync-ebay-taxonomy`. Expect "loaded N eBay taxonomy terms".
+4. Restart `make market-worker`. **Get comps** now also shows eBay asks under **Current listings** when a listing matches the card.
+
+**Switching to production:**
+- Set `CARD_MAVEN_EBAY_ENVIRONMENT=production` with the production keyset.
+- Optionally set `CARD_MAVEN_EBAY_CAMPAIGN_ID` (eBay Partner Network) for affiliate links.
+- In Kubernetes, put the keys in the app Secret as `ebay-client-id` and `ebay-client-secret`.
+
 ## Running everything in containers
 
 ```bash
 docker compose -f infra/compose/docker-compose.yml --profile app up --build
 ```
 
-This also runs the API (port 8000) and the outbox relay in containers. Run migrations first with `make migrate`.
+This also runs the API (port 8000), the outbox relay, and the market worker in containers. eBay keys pass through from your shell or `.env`. Run migrations first with `make migrate`.
 
 ## Troubleshooting
 
@@ -73,4 +109,8 @@ This also runs the API (port 8000) and the outbox relay in containers. Run migra
 | API returns 401 for every call | The token's `aud` must include `card-maven-api`. Re-import the realm with `make reset && make bootstrap`. |
 | Photo upload fails with a CORS error | Run `make storage` to (re)apply the bucket's CORS rules for `http://localhost:5173`. |
 | `make install` / `make bootstrap` says a tool is missing | Follow the install hint `make doctor` prints, then open a new terminal. |
+| Get comps stays on "Checking market sources…" | The relay or the market worker isn't running (`make relay`, `make market-worker`). A stuck job stops blocking new requests after 10 minutes. |
+| `market_source_skipped reason='eBay keys not set'` | Expected without eBay keys. Comps come from the sample source locally. |
+| `invalid settings: the fixture market source is sample data…` | Deployed environments must set `CARD_MAVEN_MARKET_SOURCES='["ebay_browse"]'`. |
+| `make dbt` fails to connect | dbt reads `DBT_PG_*` (defaults match `make up`); see `analytics/dbt/README.md`. |
 | Port already in use | Stop whatever holds 5432, 8000, 8080, 8333, or 9092, or change the port mapping in `docker-compose.yml`. |

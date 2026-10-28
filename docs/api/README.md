@@ -54,6 +54,8 @@ Limits apply per signed-in user (or per IP when anonymous). Every response carri
 | Default | 300 / minute |
 | Creating, editing, deleting cards and photos | 60 / minute |
 | Starting a photo upload | 30 / minute |
+| Adding sales you know of | 60 / minute |
+| Refreshing comps (`…/comps/refresh`) | 10 / minute |
 
 ## Endpoints
 
@@ -71,6 +73,11 @@ Limits apply per signed-in user (or per IP when anonymous). Every response carri
 | POST | `/collection/items/{id}/images` | Start a photo upload |
 | POST | `/collection/items/{id}/images/{image_id}/complete` | Finish a photo upload |
 | DELETE | `/collection/items/{id}/images/{image_id}` | Remove a photo |
+| GET | `/collection/items/{id}/comps` | Comps, estimate, current asks, and the latest market sync |
+| POST | `/collection/items/{id}/comps/refresh` | Start (or join) a market sync for this card: `202` with the job |
+| POST | `/collection/items/{id}/comps` | Add 1–200 sales you know of (private to you) |
+| DELETE | `/market/sales/{sale_id}` | Delete a sale you added |
+| GET | `/market/sync-jobs/{job_id}` | Check a market sync (visible to collectors who hold the card) |
 
 `sort` is one of `newest` (default), `oldest`, `year_desc`, `year_asc`, `name`.
 
@@ -118,3 +125,57 @@ Photos go straight from the client to object storage. The API never sees the byt
 3. **Complete.** `POST /collection/items/{id}/images/{image_id}/complete`. The API checks the stored file's size, type, signature, and SHA-256, then makes it the card's front or back photo, replacing the previous one. A `409` here means the file hasn't arrived yet, or another upload of the same side finished first; retry. A `422` means the file failed verification, and it has been discarded; start over.
 
 Photo URLs in responses (`images.front.url`) are short-lived presigned links (10 minutes). Re-fetch the card to get fresh ones.
+
+## Comps and estimated value
+
+`GET /collection/items/{id}/comps` returns everything the Market panel shows:
+
+```json
+{
+  "item_id": "6d1f…",
+  "grade": "PSA 10",
+  "estimate": {
+    "value": { "amount": "98.75", "currency": "USD" },
+    "sample_size": 2, "grade": "PSA 10", "window_days": 180,
+    "latest_sale_at": "2026-10-23T12:00:00Z"
+  },
+  "comps": [
+    { "id": "…", "sold_at": "2026-10-23T12:00:00Z", "price": { "amount": "95.00", "currency": "USD" },
+      "condition": "graded", "grader": "PSA", "grade": "10.0", "title": "…", "url": null,
+      "source": "fixture", "sale_type": "auction", "match": "exact", "mine": false }
+  ],
+  "asks": [
+    { "id": "…", "title": "…", "price": { "amount": "120.00", "currency": "USD" },
+      "buying_option": "fixed_price", "bid_count": null, "condition": "graded", "grader": "PSA",
+      "grade": "10.0", "url": "https://www.ebay.com/itm/…", "image_url": null,
+      "source": "ebay_browse", "observed_at": "2026-10-27T11:40:00Z", "ends_at": null }
+  ],
+  "last_sync": { "id": "…", "status": "succeeded", "created_at": "…", "started_at": "…",
+                 "finished_at": "…", "error": null }
+}
+```
+
+- **`comps`:** up to 5 sales of this exact card, newest first within each group. Sales at the item's exact grade (`match: "exact"`) come first, then the nearest grades (`"nearest"`). Only sources licensed for analytics appear here. `mine: true` marks a sale you added, which you can delete.
+- **`estimate`:** the median of up to the 10 most recent exact-grade USD sales in the last 180 days, or `null` when there are none. The same value is on every item as `estimated_value` and `estimate`.
+- **`asks`:** up to 5 current listings, cheapest first. These are **asking prices, not sales**. They come from display-only sources (eBay), are never used for comps or estimates, and are hidden once more than 6 hours old. Links may be affiliate links.
+
+### Refreshing
+
+`POST /collection/items/{id}/comps/refresh` queues a sync and returns `202` with the job. If a sync for this card is already queued or running, or one finished within the last 15 minutes, you get that job instead, so it's safe to call repeatedly. Poll `GET /market/sync-jobs/{job_id}` every couple of seconds until `status` is `succeeded` or `failed`, then reload the comps. A `failed` job keeps whatever data was already there. `error` gives a short reason.
+
+### Adding sales
+
+```http
+POST /api/v1/collection/items/{id}/comps
+
+{ "sales": [
+  { "sold_on": "2026-10-01", "price": { "amount": "95.00", "currency": "USD" },
+    "condition": "graded", "grader": "PSA", "grade": "10",
+    "sale_type": "auction", "title": "eBay auction", "url": "https://www.ebay.com/itm/…" }
+] }
+```
+
+- **Fields.** `sold_on` can't be in the future or more than 15 years back. A graded sale needs `grader` and `grade`; a raw one can't have them. `url` must be http(s).
+- **Visibility.** The sales count toward *your* comps and estimates only.
+- **Limits.** Up to 200 sales per request and 1,000 per card.
+- **Response.** `201` with `{ "added": n, "market": { …the comps response… } }`.

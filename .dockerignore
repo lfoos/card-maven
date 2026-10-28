@@ -12,3 +12,5 @@
 apps
 infra
 docs
+analytics/dbt/target
+analytics/dbt/logs
